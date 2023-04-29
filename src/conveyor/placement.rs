@@ -9,13 +9,20 @@ use crate::{vec2_traits::*, ConveyorDirection, OptionalResource};
 use super::update::ChangeConveyorDirection;
 
 pub mod prelude {
+  pub use super::PlaceTile;
+  pub use super::UpdateTile;
   pub use super::PreviousTilePlaceAttempt;
   pub use super::PreviouslyPlacedTile;
-  pub use super::PlaceTile;
 }
 
 pub mod systems {
   pub use super::place_tiles_drag;
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdateTile {
+  pub pos: TilePos,
+  pub entity: Entity,
 }
 
 #[derive(Debug, Resource)]
@@ -68,17 +75,24 @@ pub fn spawn_tile(
   position: TilePos,
   tile_storage: &mut TileStorage,
   tilemap_entity: Entity,
-  texture_index: TileTextureIndex,
+  direction: ConveyorDirection,
+  placed_tiles: &mut EventWriter<UpdateTile>,
 ) -> Entity {
+  println!("placed tile at {}", position.as_ivec2());
   let tile_entity = commands
     .spawn(TileBundle {
       position,
       tilemap_id: TilemapId(tilemap_entity),
-      texture_index,
+      texture_index: TileTextureIndex(direction.texture_index()),
       ..Default::default()
     })
+    .insert(direction)
     .id();
   tile_storage.set(&position, tile_entity);
+  placed_tiles.send(UpdateTile {
+    pos: position,
+    entity: tile_entity,
+  });
   tile_entity
 }
 
@@ -90,11 +104,11 @@ pub fn place_tile(
   tilemap_size: &TilemapSize,
   previous_tile: &Option<PreviouslyPlacedTile>,
   change_conveyor_detection: &mut EventWriter<ChangeConveyorDirection>,
+  mut placed_tiles: &mut EventWriter<UpdateTile>,
 ) -> Option<PreviouslyPlacedTile> {
   let mut input_direction = None;
   if let Some(previous_tile) = previous_tile {
     let diff = position - previous_tile.tile_pos.as_ivec2();
-    print!(", diff: {}", diff);
     let direction = match (diff.x, diff.y) {
       (0, 1) => Some(ConveyorDirection::North),
       (1, 0) => Some(ConveyorDirection::East),
@@ -102,8 +116,8 @@ pub fn place_tile(
       (-1, 0) => Some(ConveyorDirection::West),
       _ => None,
     };
+    println!("direction: {:?}, position: {:?}", direction, previous_tile.tile_pos);
     if let Some(direction) = direction {
-      print!("\nchange direction of tile");
       change_conveyor_detection.send(ChangeConveyorDirection {
         entity: previous_tile.entity,
         direction,
@@ -119,16 +133,17 @@ pub fn place_tile(
     && position.y < tilemap_size.y as i32
   {
     let direction = input_direction.unwrap_or(ConveyorDirection::North);
-    let tile_pos = position.as_uvec2().to_tile_pos();
+    let position = position.as_uvec2().to_tile_pos();
     let tile_entity = spawn_tile(
       commands,
-      tile_pos,
+      position,
       tile_storage,
       tilemap_entity,
-      TileTextureIndex(direction.texture_index()),
+      direction,
+      &mut placed_tiles,
     );
     Some(PreviouslyPlacedTile {
-      tile_pos,
+      tile_pos: position,
       entity: tile_entity,
       direction,
     })
@@ -146,8 +161,8 @@ pub fn place_tile_line(
   tilemap_entity: Entity,
   tilemap_size: &TilemapSize,
   previous_tile: &mut Option<PreviouslyPlacedTile>,
+  mut placed_tiles: &mut EventWriter<UpdateTile>,
 ) {
-  print!("\nPlacing tiles from {} to {}", from, to);
   let mut current_offset = IVec2::ZERO;
   let direction = IVec2::new((to.x - from.x).signum(), (to.y - from.y).signum());
   let vector = IVec2::new(to.x - from.x, to.y - from.y);
@@ -166,7 +181,6 @@ pub fn place_tile_line(
       current_offset.y += direction.y;
     }
     let next_pos = from + current_offset;
-    print!("\n{:?}", previous_tile);
 
     *previous_tile = place_tile(
       &mut commands,
@@ -176,10 +190,10 @@ pub fn place_tile_line(
       &tilemap_size,
       previous_tile,
       &mut change_conveyor_detection,
+      &mut placed_tiles,
     );
   }
 
-  println!();
   match previous_tile.as_ref() {
     Some(previous_tile) => commands.insert_resource(previous_tile.clone()),
     None => commands.remove_resource::<PreviouslyPlacedTile>(),
@@ -190,6 +204,7 @@ pub fn place_tiles_drag(
   mut commands: Commands,
   mut place_tile_event: EventReader<PlaceTile>,
   mut change_conveyor_detection: EventWriter<ChangeConveyorDirection>,
+  mut placed_tiles: EventWriter<UpdateTile>,
   mut tilemaps: Query<(Entity, &mut TileStorage, &TilemapSize)>,
   previous_tile: Option<Res<PreviouslyPlacedTile>>,
 ) {
@@ -209,6 +224,7 @@ pub fn place_tiles_drag(
           &tilemap_size,
           &previous_tile,
           &mut change_conveyor_detection,
+          &mut placed_tiles,
         );
 
         match previous_tile.as_ref() {
@@ -227,6 +243,7 @@ pub fn place_tiles_drag(
         tilemap_entity,
         tilemap_size,
         &mut previous_tile,
+        &mut placed_tiles,
       )
     }
   }

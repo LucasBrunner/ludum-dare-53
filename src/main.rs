@@ -12,7 +12,7 @@ use bevy_pixel_camera::{PixelCameraBundle, PixelCameraPlugin};
 use camera::prelude::*;
 
 fn startup(mut commands: Commands, asset_server: Res<AssetServer>) {
-  commands.spawn(PixelCameraBundle::from_zoom(6));
+  commands.spawn(PixelCameraBundle::from_zoom(4));
 
   let texture_handle: Handle<Image> = asset_server.load("conveyor.png");
 
