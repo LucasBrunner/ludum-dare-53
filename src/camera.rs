@@ -1,5 +1,14 @@
+pub mod mouse_input;
+
 use bevy::{input::Input, math::Vec3, prelude::*, render::camera::Camera};
 use bevy_pixel_camera::PixelProjection;
+
+pub mod prelude {
+  pub use super::mouse_input::CursorPos;
+  pub use super::mouse_input::update_cursor_pos;
+  pub use super::CameraMoved;
+  pub use super::movement;
+}
 
 pub struct CameraMoved();
 

@@ -4,13 +4,47 @@ use bevy_ecs_tilemap::{
   tiles::{TileBundle, TilePos, TileStorage, TileTextureIndex},
 };
 
-use crate::{vec2_traits::*, ChangeConveyorDirection, ConveyorDirection};
+use crate::{vec2_traits::*, ConveyorDirection, OptionalResource};
+
+use super::update::ChangeConveyorDirection;
+
+pub mod prelude {
+  pub use super::PreviousTilePlaceAttempt;
+  pub use super::PreviouslyPlacedTile;
+  pub use super::PlaceTile;
+}
+
+pub mod systems {
+  pub use super::place_tiles_drag;
+}
+
+#[derive(Debug, Resource)]
+pub struct PreviousTilePlaceAttempt(pub Option<IVec2>);
+
+impl FromWorld for PreviousTilePlaceAttempt {
+  fn from_world(_world: &mut World) -> Self {
+    PreviousTilePlaceAttempt(None)
+  }
+}
 
 #[derive(Debug, Resource, Clone)]
 pub struct PreviouslyPlacedTile {
   tile_pos: TilePos,
   entity: Entity,
   direction: ConveyorDirection,
+}
+
+impl OptionalResource<PreviouslyPlacedTile> for Option<Res<'_, PreviouslyPlacedTile>> {
+  fn resource_as_option(&self) -> Option<PreviouslyPlacedTile> {
+    match self {
+      Some(res) => Some(PreviouslyPlacedTile {
+        tile_pos: res.tile_pos,
+        entity: res.entity,
+        direction: res.direction,
+      }),
+      None => None,
+    }
+  }
 }
 
 #[derive(Debug)]
@@ -46,23 +80,6 @@ pub fn spawn_tile(
     .id();
   tile_storage.set(&position, tile_entity);
   tile_entity
-}
-
-trait OptionalResource<T> {
-  fn resource_as_option(&self) -> Option<T>;
-}
-
-impl OptionalResource<PreviouslyPlacedTile> for Option<Res<'_, PreviouslyPlacedTile>> {
-  fn resource_as_option(&self) -> Option<PreviouslyPlacedTile> {
-    match self {
-      Some(res) => Some(PreviouslyPlacedTile {
-        tile_pos: res.tile_pos,
-        entity: res.entity,
-        direction: res.direction,
-      }),
-      None => None,
-    }
-  }
 }
 
 pub fn place_tile(
