@@ -1,4 +1,10 @@
 mod camera;
+mod tile_placement;
+mod vec2_traits;
+
+use std::fmt::Display;
+
+use tile_placement::*;
 
 use bevy::{math::Vec4Swizzles, prelude::*};
 use bevy_ecs_tilemap::prelude::*;
@@ -78,30 +84,109 @@ pub fn update_cursor_pos(
   }
 }
 
-fn place_tile(
-  cursor_pos: ResMut<CursorPos>,
-  mut tilemaps: Query<(
-    Entity,
-    &mut TileStorage,
-    &TilemapGridSize,
-    &TilemapType,
-    &TilemapSize,
-    &Transform,
-  )>,
-  mut commands: Commands,
-) {
-  let Ok((tilemap_entity, mut tile_storage, grid_size, map_type, map_size, map_transform)) = tilemaps.get_single_mut() else { return; };
-  let Some(tile_pos) = TilePos::from_world_pos(&cursor_pos.to_map_pos(map_transform), map_size, grid_size, map_type) else { return; };
+#[derive(Debug, Resource)]
+pub struct PreviousTilePlacePosition(Option<IVec2>);
 
-  let tile_entity = commands
-    .spawn(TileBundle {
-      position: tile_pos,
-      tilemap_id: TilemapId(tilemap_entity),
-      texture_index: TileTextureIndex(1),
-      ..Default::default()
-    })
-    .id();
-  tile_storage.set(&tile_pos, tile_entity);
+impl FromWorld for PreviousTilePlacePosition {
+  fn from_world(_world: &mut World) -> Self {
+    PreviousTilePlacePosition(None)
+  }
+}
+
+fn detect_tile_place(
+  cursor_pos: ResMut<CursorPos>,
+  mouse_click: ResMut<Input<MouseButton>>,
+  mut previous_tile_place_position: ResMut<PreviousTilePlacePosition>,
+  mut place_tile_event: EventWriter<PlaceTile>,
+  mut tilemaps: Query<(&TilemapGridSize, &Transform)>,
+) {
+  let Ok((grid_size, map_transform)) = tilemaps.get_single_mut() else { return; };
+  let tile_pos = (cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y)
+    + Vec2::new(0.5, 0.5))
+  .as_ivec2();
+  if mouse_click.pressed(MouseButton::Left) {
+    match previous_tile_place_position.0 {
+      Some(previous_tile_place) => {
+        if tile_pos != previous_tile_place {
+          place_tile_event.send(PlaceTile::new(previous_tile_place, tile_pos));
+        }
+      }
+      None => place_tile_event.send(PlaceTile::new_single_pos(tile_pos)),
+    }
+    previous_tile_place_position.0 = Some(tile_pos);
+  } else {
+    previous_tile_place_position.0 = None;
+  }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ConveyorDirection {
+  North,
+  South,
+  East,
+  West,
+}
+
+impl Display for ConveyorDirection {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.write_str(self.name())
+  }
+}
+
+impl ConveyorDirection {
+  pub fn texture_index(&self) -> u32 {
+    match self {
+      ConveyorDirection::North => 1,
+      ConveyorDirection::East => 2,
+      ConveyorDirection::South => 3,
+      ConveyorDirection::West => 4,
+    }
+  }
+
+  pub fn opposite(&self) -> ConveyorDirection {
+    match self {
+      ConveyorDirection::North => ConveyorDirection::South,
+      ConveyorDirection::East => ConveyorDirection::West,
+      ConveyorDirection::South => ConveyorDirection::North,
+      ConveyorDirection::West => ConveyorDirection::East,
+    }
+  }
+
+  pub fn name(&self) -> &'static str {
+    match self {
+      ConveyorDirection::North => "North",
+      ConveyorDirection::South => "South",
+      ConveyorDirection::East => "East",
+      ConveyorDirection::West => "West",
+    }
+  }
+}
+
+#[derive(Debug)]
+pub struct ChangeConveyorDirection {
+  pub entity: Entity,
+  pub direction: ConveyorDirection,
+}
+
+fn update_tile_direction(
+  mut change_conveyor_detection: EventReader<ChangeConveyorDirection>,
+  mut tiles: Query<(Entity, &mut TileTextureIndex, &TilePos)>,
+) {
+  if change_conveyor_detection.len() != 0 {
+    println!("changes to make: {}", change_conveyor_detection.len());
+  }
+
+  for change_conveyor_direction in change_conveyor_detection.iter() {
+    let Ok(mut tile) = tiles.get_mut(change_conveyor_direction.entity) else {
+      println!("could not find tile");
+      continue;
+    };
+    println!(
+      "Updating tile at pos {:?} to direction {}",
+      tile.2, change_conveyor_direction.direction,
+    );
+    *tile.1 = TileTextureIndex(change_conveyor_direction.direction.texture_index());
+  }
 }
 
 fn main() {
@@ -110,10 +195,21 @@ fn main() {
     .add_plugin(TilemapPlugin)
     .add_plugin(PixelCameraPlugin)
     .init_resource::<CursorPos>()
+    .init_resource::<PreviousTilePlacePosition>()
     .add_event::<CameraMoved>()
+    .add_event::<PlaceTile>()
+    .add_event::<ChangeConveyorDirection>()
     .add_startup_system(startup)
     .add_system(camera::movement)
-    .add_system(update_cursor_pos)
-    .add_system(place_tile.after(update_cursor_pos))
+    .add_systems(
+      (
+        update_cursor_pos,
+        detect_tile_place,
+        place_tiles_drag,
+        apply_system_buffers,
+        update_tile_direction,
+      )
+        .chain(),
+    )
     .run();
 }
