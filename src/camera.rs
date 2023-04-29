@@ -1,11 +1,14 @@
 use bevy::{input::Input, math::Vec3, prelude::*, render::camera::Camera};
 use bevy_pixel_camera::PixelProjection;
 
+pub struct CameraMoved();
+
 // A simple camera system for moving and zooming the camera.
 #[allow(dead_code)]
 pub fn movement(
   time: Res<Time>,
   keyboard_input: Res<Input<KeyCode>>,
+  mut camera_move_event: EventWriter<CameraMoved>,
   mut query: Query<(&mut Transform, &mut PixelProjection), With<Camera>>,
 ) {
   for (mut transform, mut ortho) in query.iter_mut() {
@@ -40,6 +43,10 @@ pub fn movement(
 
     if ortho.zoom < 1 {
       ortho.zoom = 1;
+    }
+
+    if round_transform || direction.x != 0.0 || direction.y != 0.0 {
+      camera_move_event.send(CameraMoved());
     }
 
     let z = transform.translation.z;
