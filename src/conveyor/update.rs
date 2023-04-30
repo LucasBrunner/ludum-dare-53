@@ -7,7 +7,7 @@ use crate::{
     placement::{PlaceConveyor, PreviousMouseConveyorInput},
     ConveyorDirection,
   },
-  vec2_traits::{AsIVec2, TilePosFromSigned},
+  vec2_traits::{AsIVec2, TilePosFromSigned}, input::prelude::EguiCapturedResources,
 };
 
 use super::{placement::TileUpdate, removal::RemoveConveyor, ConveyorTileLayer};
@@ -19,6 +19,7 @@ pub mod systems {
 }
 
 pub fn detect_conveyor_input(
+  captured_resources: Res<EguiCapturedResources>,
   cursor_pos: ResMut<CursorPos>,
   mouse_click: ResMut<Input<MouseButton>>,
   mut previous_mouse_conveyor_input: ResMut<PreviousMouseConveyorInput>,
@@ -26,6 +27,10 @@ pub fn detect_conveyor_input(
   mut remove_tile_event: EventWriter<RemoveConveyor>,
   mut tilemaps: Query<(&TilemapGridSize, &Transform, &ConveyorTileLayer)>,
 ) {
+  if captured_resources.mouse_captured() {
+    return;
+  }
+  
   let Ok((grid_size, map_transform, _)) = tilemaps.get_single_mut() else { return; };
   let cursor_pos = cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y);
   let cursor_pos = (cursor_pos + Vec2::new(0.5, 0.5)).as_ivec2();

@@ -2,9 +2,10 @@ use std::fmt::Display;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
-use bevy_egui::egui::Pos2;
+use bevy_egui::egui::{Pos2, Id, Style, Align2};
 use bevy_egui::{egui, EguiContexts};
 
+use crate::GameSystemSet;
 use crate::camera::prelude::update_cursor_pos;
 
 use self::placement::{systems::*, PreviouslyPlacedTile};
@@ -211,6 +212,14 @@ pub struct ConveyorBuildPlugin {
   pub playfield_size: PlayfieldSize,
 }
 
+impl ConveyorBuildPlugin {
+  pub fn new(playfield_size: PlayfieldSize) -> ConveyorBuildPlugin {
+    ConveyorBuildPlugin {
+      playfield_size,
+    }
+  }
+}
+
 #[derive(Default, Resource)]
 struct UiState {
   // egui_texture_handle: Option<egui::TextureHandle>,
@@ -245,8 +254,10 @@ fn conveyor_window(
     Pos2::new((16.0 + offset) / 464.0, 1.0),
   );
 
-  egui::TopBottomPanel::bottom("Window").show(ctx, |ui| {
-    ui.add(egui::widgets::Image::new(image, [64.0, 64.0]).uv(uv))
+  egui::Area::new(Id::null()).anchor(Align2::RIGHT_BOTTOM, egui::Vec2::ZERO).show(ctx, |ui| {
+    egui::Frame::side_top_panel(&Style::default()).show(ui, |ui| {
+      ui.add(egui::widgets::Image::new(image, [64.0, 64.0]).uv(uv));
+    })
   });
 }
 
@@ -271,6 +282,7 @@ impl Plugin for ConveyorBuildPlugin {
           conveyor_tile_update,
         )
           .after(update_cursor_pos)
+          .in_set(GameSystemSet::Conveyor)
           .chain(),
       )
       .add_system(conveyor_window.after(place_tiles_drag));
