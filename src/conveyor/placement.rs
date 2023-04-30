@@ -6,7 +6,7 @@ use bevy_ecs_tilemap::{
 
 use crate::{vec2_traits::*, ConveyorDirection, OptionalResource};
 
-use super::update::ChangeConveyorDirection;
+use super::{update::ChangeConveyorDirection, ConveyorTileLayer};
 
 pub mod prelude {
   pub use super::PlaceTile;
@@ -22,7 +22,7 @@ pub mod systems {
 #[derive(Debug, Clone)]
 pub struct UpdateTile {
   pub pos: TilePos,
-  pub entity: Entity,
+  // pub entity: Entity,
 }
 
 #[derive(Debug, Resource)]
@@ -91,7 +91,7 @@ pub fn spawn_tile(
   tile_storage.set(&position, tile_entity);
   placed_tiles.send(UpdateTile {
     pos: position,
-    entity: tile_entity,
+    // entity: tile_entity,
   });
   tile_entity
 }
@@ -205,10 +205,10 @@ pub fn place_tiles_drag(
   mut place_tile_event: EventReader<PlaceTile>,
   mut change_conveyor_detection: EventWriter<ChangeConveyorDirection>,
   mut placed_tiles: EventWriter<UpdateTile>,
-  mut tilemaps: Query<(Entity, &mut TileStorage, &TilemapSize)>,
+  mut tilemaps: Query<(Entity, &mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
   previous_tile: Option<Res<PreviouslyPlacedTile>>,
 ) {
-  let Ok((tilemap_entity, mut tile_storage, tilemap_size)) = tilemaps.get_single_mut() else { return; };
+  let Ok((tilemap_entity, mut tile_storage, tilemap_size, _)) = tilemaps.get_single_mut() else { return; };
   let mut previous_tile = previous_tile.resource_as_option();
   for place_tile_event in place_tile_event.iter() {
     let (to, from) = (place_tile_event.to, place_tile_event.from);
@@ -241,7 +241,7 @@ pub fn place_tiles_drag(
         &mut change_conveyor_detection,
         &mut tile_storage,
         tilemap_entity,
-        tilemap_size,
+        &tilemap_size,
         &mut previous_tile,
         &mut placed_tiles,
       )
