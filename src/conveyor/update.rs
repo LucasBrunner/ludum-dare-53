@@ -29,7 +29,6 @@ pub fn detect_conveyor_input(
   let Ok((grid_size, map_transform, _)) = tilemaps.get_single_mut() else { return; };
   let cursor_pos = cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y);
   let cursor_pos = (cursor_pos + Vec2::new(0.5, 0.5)).as_ivec2();
-  println!("{:?}, {:?}", previous_mouse_conveyor_input, cursor_pos);
 
   match (mouse_click.pressed(MouseButton::Left), mouse_click.pressed(MouseButton::Right)) {
     (true, false) => {

@@ -133,12 +133,23 @@ fn setup_conveyor(
 
   for x in 0..background_map_size.x {
     for y in 0..background_map_size.y {
+      let texture_index = match (x == 0, y == 0, x == background_map_size.x - 1, y == background_map_size.y - 1) {
+        (true, _, _, true) => 13,
+        (true, true, _, _) => 12,
+        (_, true, true, _) => 11,
+        (_, _, true, true) => 10,
+        (_, _, true, _) => 9,
+        (_, _, _, true) => 8,
+        (true, _, _, _) => 7,
+        (_, true, _, _) => 6,
+        _ => 1,
+      };
       let position = TilePos { x, y };
       let tile_entity = commands
         .spawn(TileBundle {
           position,
           tilemap_id: TilemapId(background_tilemap),
-          texture_index: TileTextureIndex(1),
+          texture_index: TileTextureIndex(texture_index),
           ..default()
         })
         .id();
@@ -191,7 +202,7 @@ fn setup_conveyor(
       storage: playfield_storage,
       texture: TilemapTexture::Single(playfield_texture_handle),
       tile_size,
-      transform: get_tilemap_center_transform(&background_map_size, &grid_size, &map_type, 10.0),
+      transform: get_tilemap_center_transform(&playfield_map_size, &grid_size, &map_type, 10.0),
       ..default()
     })
     .insert(ConveyorTileLayer);

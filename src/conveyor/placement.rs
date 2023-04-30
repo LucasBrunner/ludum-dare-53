@@ -83,7 +83,6 @@ pub fn spawn_tile(
   direction: ConveyorDirection,
   placed_tiles: &mut EventWriter<TileUpdate>,
 ) -> Entity {
-  println!("placed tile at {}", position.as_ivec2());
   let tile_entity = commands
     .spawn(TileBundle {
       position,
