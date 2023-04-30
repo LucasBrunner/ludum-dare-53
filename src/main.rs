@@ -3,6 +3,7 @@
 mod camera;
 mod conveyor;
 mod vec2_traits;
+mod helpers;
 
 use conveyor::{prelude::*, PlayfieldSize};
 

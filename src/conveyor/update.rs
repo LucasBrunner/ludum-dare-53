@@ -4,43 +4,62 @@ use bevy_ecs_tilemap::prelude::*;
 use crate::{
   camera::prelude::CursorPos,
   conveyor::{
-    placement::{PlaceTile, PreviousTilePlaceAttempt},
+    placement::{PlaceConveyor, PreviousMouseConveyorInput},
     ConveyorDirection,
   },
-  vec2_traits::{AsIVec2, ToTilePos},
+  vec2_traits::{AsIVec2, TilePosFromSigned},
 };
 
-use super::{placement::UpdateTile, ConveyorTileLayer};
+use super::{placement::TileUpdate, ConveyorTileLayer, removal::RemoveConveyor};
 
 pub mod systems {
   pub use super::conveyor_tile_update;
-  pub use super::detect_tile_place;
+  pub use super::detect_conveyor_input;
   pub use super::update_tile_direction;
 }
 
-pub fn detect_tile_place(
+pub fn detect_conveyor_input(
   cursor_pos: ResMut<CursorPos>,
   mouse_click: ResMut<Input<MouseButton>>,
-  mut previous_tile_place_position: ResMut<PreviousTilePlaceAttempt>,
-  mut place_tile_event: EventWriter<PlaceTile>,
+  mut previous_mouse_conveyor_input: ResMut<PreviousMouseConveyorInput>,
+  mut place_tile_event: EventWriter<PlaceConveyor>,
+  mut remove_tile_event: EventWriter<RemoveConveyor>,
   mut tilemaps: Query<(&TilemapGridSize, &Transform, &ConveyorTileLayer)>,
 ) {
   let Ok((grid_size, map_transform, _)) = tilemaps.get_single_mut() else { return; };
-  let tile_pos = (cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y)
-    + Vec2::new(0.5, 0.5))
-  .as_ivec2();
-  if mouse_click.pressed(MouseButton::Left) {
-    match previous_tile_place_position.0 {
-      Some(previous_tile_place) => {
-        if tile_pos != previous_tile_place {
-          place_tile_event.send(PlaceTile::new(previous_tile_place, tile_pos));
-        }
+  let cursor_pos = cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y);
+  let cursor_pos = (cursor_pos + Vec2::new(0.5, 0.5)).as_ivec2();
+  println!("{:?}, {:?}", previous_mouse_conveyor_input, cursor_pos);
+
+  match (mouse_click.pressed(MouseButton::Left), mouse_click.pressed(MouseButton::Right)) {
+    (true, false) => {
+      match previous_mouse_conveyor_input.add_conveyor {
+        Some(previous_pos) => {
+          if cursor_pos != previous_pos {
+            place_tile_event.send(PlaceConveyor::new(previous_pos, cursor_pos));
+          }
+        },
+        None => place_tile_event.send(PlaceConveyor::new_single_pos(cursor_pos)),
       }
-      None => place_tile_event.send(PlaceTile::new_single_pos(tile_pos)),
-    }
-    previous_tile_place_position.0 = Some(tile_pos);
-  } else {
-    previous_tile_place_position.0 = None;
+      previous_mouse_conveyor_input.add_conveyor = Some(cursor_pos);
+      previous_mouse_conveyor_input.remove_conveyor = None;
+    },
+    (false, true) => {
+      match previous_mouse_conveyor_input.remove_conveyor {
+        Some(previous_pos) => {
+          if cursor_pos != previous_pos {
+            remove_tile_event.send(RemoveConveyor::new(previous_pos, cursor_pos));
+          }
+        },
+        None => remove_tile_event.send(RemoveConveyor::new_single_pos(cursor_pos)),
+      }
+      previous_mouse_conveyor_input.add_conveyor = None;
+      previous_mouse_conveyor_input.remove_conveyor = Some(cursor_pos);
+    },
+    _ => {
+      previous_mouse_conveyor_input.add_conveyor = None;
+      previous_mouse_conveyor_input.remove_conveyor = None;
+    },
   }
 }
 
@@ -52,7 +71,7 @@ pub struct ChangeConveyorDirection {
 
 pub fn update_tile_direction(
   mut change_conveyor_detection: EventReader<ChangeConveyorDirection>,
-  mut conveyor_tile_updates: EventWriter<UpdateTile>,
+  mut conveyor_tile_updates: EventWriter<TileUpdate>,
   mut tiles: Query<(Entity, &mut ConveyorDirection, &TilePos)>,
 ) {
   if change_conveyor_detection.len() != 0 {}
@@ -61,10 +80,7 @@ pub fn update_tile_direction(
     let Ok(mut tile) = tiles.get_mut(change_conveyor_direction.entity) else {
       continue;
     };
-    conveyor_tile_updates.send(UpdateTile {
-      pos: *tile.2,
-      // entity: tile.0,
-    });
+    conveyor_tile_updates.send(TileUpdate { pos: *tile.2 });
     *tile.1 = change_conveyor_direction.direction;
   }
 }
@@ -112,11 +128,11 @@ mod ttti {
 }
 
 pub fn conveyor_tile_update(
-  mut conveyor_tile_updates: EventReader<UpdateTile>,
+  mut conveyor_tile_updates: EventReader<TileUpdate>,
   tilemaps: Query<(&mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
   mut tiles: Query<(Entity, &mut TileTextureIndex, &ConveyorDirection)>,
 ) {
-  // get all conveyors which need updating
+  // get the position of all conveyors which need updating
   let conveyor_tile_updates: Vec<_> = conveyor_tile_updates.into_iter().collect();
   for (tile_store, tilemap_size, _) in tilemaps.iter() {
     let conveyors_to_update: HashSet<_> = conveyor_tile_updates
@@ -130,14 +146,10 @@ pub fn conveyor_tile_update(
           .iter()
           .filter_map(|offset| {
             let pos = pos.as_ivec2() + *offset;
-            if pos.min_element() < 0 {
-              return None;
-            }
-            let pos = pos.as_uvec2();
-            if pos.x >= tilemap_size.x || pos.y >= tilemap_size.y {
-              None
+            if let Ok(tile_pos) = pos.to_tile_pos(&tilemap_size) {
+              Some(tile_pos)
             } else {
-              Some(pos.to_tile_pos())
+              None
             }
           })
       })
@@ -146,7 +158,7 @@ pub fn conveyor_tile_update(
         acc
       });
 
-    // calculate the correct texture for all conveyors
+    // fetch the entities and calculate the correct texture for all conveyors
     let texture_updates: Vec<_> = conveyors_to_update
       .union(&secondary_conveyors)
       .filter_map(|tile_pos| {
@@ -160,7 +172,10 @@ pub fn conveyor_tile_update(
         let side_states: [ConveyorNeighbor; 3] = conveyor_direction.neighbors_to_check_for_connections()
         .iter()
         .map(|direction| {
-          let Some(tile) = tile_store.get(&(direction.offset() + tile_pos.as_ivec2()).as_uvec2().to_tile_pos()) else {
+          let Ok(tile_pos) = (direction.offset() + tile_pos.as_ivec2()).to_tile_pos(&tilemap_size) else {
+            return ConveyorNeighbor::None;
+          };
+          let Some(tile) = tile_store.get(&tile_pos) else {
             return ConveyorNeighbor::None;
           };
           let Ok((_, _, neighbor_direction)) =  tiles.get(tile) else {

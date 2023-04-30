@@ -6,9 +6,11 @@ use bevy_ecs_tilemap::prelude::*;
 use crate::camera::prelude::update_cursor_pos;
 
 use self::placement::systems::*;
+use self::removal::remove_conveyor_drag;
 use self::update::systems::*;
 
 pub mod placement;
+pub mod removal;
 pub mod update;
 
 pub mod prelude {
@@ -144,16 +146,19 @@ fn setup_conveyor(
     }
   }
 
-  commands.entity(background_tilemap).insert(TilemapBundle {
-    grid_size,
-    map_type,
-    size: background_map_size,
-    storage: background_storage,
-    texture: TilemapTexture::Single(background_texture_handle),
-    tile_size,
-    transform: get_tilemap_center_transform(&background_map_size, &grid_size, &map_type, 0.0),
-    ..default()
-  }).insert(BackgroundTileLayer);
+  commands
+    .entity(background_tilemap)
+    .insert(TilemapBundle {
+      grid_size,
+      map_type,
+      size: background_map_size,
+      storage: background_storage,
+      texture: TilemapTexture::Single(background_texture_handle),
+      tile_size,
+      transform: get_tilemap_center_transform(&background_map_size, &grid_size, &map_type, 0.0),
+      ..default()
+    })
+    .insert(BackgroundTileLayer);
 
   let playfield_tilemap = commands.spawn_empty().id();
   let playfield_texture_handle: Handle<Image> = asset_server.load("conveyor.png");
@@ -177,16 +182,19 @@ fn setup_conveyor(
     }
   }
 
-  commands.entity(playfield_tilemap).insert(TilemapBundle {
-    grid_size,
-    map_type,
-    size: playfield_map_size,
-    storage: playfield_storage,
-    texture: TilemapTexture::Single(playfield_texture_handle),
-    tile_size,
-    transform: get_tilemap_center_transform(&background_map_size, &grid_size, &map_type, 10.0),
-    ..default()
-  }).insert(ConveyorTileLayer);
+  commands
+    .entity(playfield_tilemap)
+    .insert(TilemapBundle {
+      grid_size,
+      map_type,
+      size: playfield_map_size,
+      storage: playfield_storage,
+      texture: TilemapTexture::Single(playfield_texture_handle),
+      tile_size,
+      transform: get_tilemap_center_transform(&background_map_size, &grid_size, &map_type, 10.0),
+      ..default()
+    })
+    .insert(ConveyorTileLayer);
 }
 
 pub struct ConveyorBuildPlugin {
@@ -196,16 +204,18 @@ pub struct ConveyorBuildPlugin {
 impl Plugin for ConveyorBuildPlugin {
   fn build(&self, app: &mut bevy::prelude::App) {
     app
-      .init_resource::<placement::PreviousTilePlaceAttempt>()
+      .init_resource::<placement::PreviousMouseConveyorInput>()
       .insert_resource(self.playfield_size.clone())
-      .add_event::<placement::UpdateTile>()
-      .add_event::<placement::PlaceTile>()
+      .add_event::<placement::TileUpdate>()
+      .add_event::<placement::PlaceConveyor>()
+      .add_event::<removal::RemoveConveyor>()
       .add_event::<update::ChangeConveyorDirection>()
       .add_startup_system(setup_conveyor)
       .add_systems(
         (
-          detect_tile_place,
+          detect_conveyor_input,
           place_tiles_drag,
+          remove_conveyor_drag,
           apply_system_buffers,
           update_tile_direction,
           conveyor_tile_update,

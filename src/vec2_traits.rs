@@ -1,5 +1,5 @@
-use bevy::prelude::{UVec2, IVec2};
-use bevy_ecs_tilemap::tiles::TilePos;
+use bevy::prelude::{IVec2, UVec2};
+use bevy_ecs_tilemap::{prelude::TilemapSize, tiles::TilePos};
 
 pub trait SetUVec2Values {
   fn set(&mut self, x: u32, y: u32);
@@ -74,6 +74,27 @@ impl ToTilePos for UVec2 {
     TilePos {
       x: self.x,
       y: self.y,
+    }
+  }
+}
+
+pub trait TilePosFromSigned {
+  fn to_tile_pos(&self, tilemap_size: &TilemapSize) -> Result<TilePos, ()>;
+}
+
+impl TilePosFromSigned for IVec2 {
+  fn to_tile_pos(&self, tilemap_size: &TilemapSize) -> Result<TilePos, ()> {
+    if self.min_element() < 0 {
+      return Err(());
+    }
+    let pos = self.as_uvec2();
+    if pos.x < tilemap_size.x && pos.y < tilemap_size.y {
+      Ok(TilePos {
+        x: pos.x,
+        y: pos.y,
+      })
+    } else {
+      Err(())
     }
   }
 }

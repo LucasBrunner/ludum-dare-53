@@ -4,15 +4,15 @@ use bevy_ecs_tilemap::{
   tiles::{TileBundle, TilePos, TileStorage, TileTextureIndex},
 };
 
-use crate::{vec2_traits::*, ConveyorDirection, OptionalResource};
+use crate::{vec2_traits::*, ConveyorDirection, OptionalResource, helpers::grid_traversal::GridTraversal};
 
 use super::{update::ChangeConveyorDirection, ConveyorTileLayer};
 
 pub mod prelude {
-  pub use super::PlaceTile;
-  pub use super::UpdateTile;
-  pub use super::PreviousTilePlaceAttempt;
+  pub use super::PlaceConveyor;
+  pub use super::PreviousMouseConveyorInput;
   pub use super::PreviouslyPlacedTile;
+  pub use super::TileUpdate;
 }
 
 pub mod systems {
@@ -20,17 +20,22 @@ pub mod systems {
 }
 
 #[derive(Debug, Clone)]
-pub struct UpdateTile {
+pub struct TileUpdate {
   pub pos: TilePos,
-  // pub entity: Entity,
 }
 
 #[derive(Debug, Resource)]
-pub struct PreviousTilePlaceAttempt(pub Option<IVec2>);
+pub struct PreviousMouseConveyorInput {
+  pub add_conveyor: Option<IVec2>,
+  pub remove_conveyor: Option<IVec2>,
+}
 
-impl FromWorld for PreviousTilePlaceAttempt {
+impl FromWorld for PreviousMouseConveyorInput {
   fn from_world(_world: &mut World) -> Self {
-    PreviousTilePlaceAttempt(None)
+    PreviousMouseConveyorInput {
+      add_conveyor: None,
+      remove_conveyor: None,
+    }
   }
 }
 
@@ -55,18 +60,18 @@ impl OptionalResource<PreviouslyPlacedTile> for Option<Res<'_, PreviouslyPlacedT
 }
 
 #[derive(Debug)]
-pub struct PlaceTile {
+pub struct PlaceConveyor {
   pub from: IVec2,
   pub to: IVec2,
 }
 
-impl PlaceTile {
-  pub fn new(from: IVec2, to: IVec2) -> PlaceTile {
-    PlaceTile { from, to }
+impl PlaceConveyor {
+  pub fn new(from: IVec2, to: IVec2) -> PlaceConveyor {
+    PlaceConveyor { from, to }
   }
 
-  pub fn new_single_pos(pos: IVec2) -> PlaceTile {
-    PlaceTile { from: pos, to: pos }
+  pub fn new_single_pos(pos: IVec2) -> PlaceConveyor {
+    PlaceConveyor { from: pos, to: pos }
   }
 }
 
@@ -76,7 +81,7 @@ pub fn spawn_tile(
   tile_storage: &mut TileStorage,
   tilemap_entity: Entity,
   direction: ConveyorDirection,
-  placed_tiles: &mut EventWriter<UpdateTile>,
+  placed_tiles: &mut EventWriter<TileUpdate>,
 ) -> Entity {
   println!("placed tile at {}", position.as_ivec2());
   let tile_entity = commands
@@ -89,10 +94,7 @@ pub fn spawn_tile(
     .insert(direction)
     .id();
   tile_storage.set(&position, tile_entity);
-  placed_tiles.send(UpdateTile {
-    pos: position,
-    // entity: tile_entity,
-  });
+  placed_tiles.send(TileUpdate { pos: position });
   tile_entity
 }
 
@@ -104,7 +106,7 @@ pub fn place_tile(
   tilemap_size: &TilemapSize,
   previous_tile: &Option<PreviouslyPlacedTile>,
   change_conveyor_detection: &mut EventWriter<ChangeConveyorDirection>,
-  mut placed_tiles: &mut EventWriter<UpdateTile>,
+  mut placed_tiles: &mut EventWriter<TileUpdate>,
 ) -> Option<PreviouslyPlacedTile> {
   let mut input_direction = None;
   if let Some(previous_tile) = previous_tile {
@@ -116,7 +118,6 @@ pub fn place_tile(
       (-1, 0) => Some(ConveyorDirection::West),
       _ => None,
     };
-    println!("direction: {:?}, position: {:?}", direction, previous_tile.tile_pos);
     if let Some(direction) = direction {
       change_conveyor_detection.send(ChangeConveyorDirection {
         entity: previous_tile.entity,
@@ -161,30 +162,12 @@ pub fn place_tile_line(
   tilemap_entity: Entity,
   tilemap_size: &TilemapSize,
   previous_tile: &mut Option<PreviouslyPlacedTile>,
-  mut placed_tiles: &mut EventWriter<UpdateTile>,
+  mut placed_tiles: &mut EventWriter<TileUpdate>,
 ) {
-  let mut current_offset = IVec2::ZERO;
-  let direction = IVec2::new((to.x - from.x).signum(), (to.y - from.y).signum());
-  let vector = IVec2::new(to.x - from.x, to.y - from.y);
-  let vector_f32 = vector.as_vec2();
-  let mut x_delta_max = vector_f32.x / vector_f32.y;
-  let mut y_delta_max = vector_f32.y / vector_f32.x;
-  let x_delta = (vector_f32 / vector_f32.x).length();
-  let y_delta = (vector_f32 / vector_f32.y).length();
-
-  for _ in 0..(vector.x.abs() + vector.y.abs()) {
-    if (x_delta_max < y_delta_max && vector.x != 0) || vector.y == 0 {
-      x_delta_max += x_delta;
-      current_offset.x += direction.x;
-    } else {
-      y_delta_max += y_delta;
-      current_offset.y += direction.y;
-    }
-    let next_pos = from + current_offset;
-
+  for position in GridTraversal::new(from, to) {
     *previous_tile = place_tile(
       &mut commands,
-      next_pos,
+      position,
       &mut tile_storage,
       tilemap_entity,
       &tilemap_size,
@@ -202,9 +185,9 @@ pub fn place_tile_line(
 
 pub fn place_tiles_drag(
   mut commands: Commands,
-  mut place_tile_event: EventReader<PlaceTile>,
+  mut place_tile_event: EventReader<PlaceConveyor>,
   mut change_conveyor_detection: EventWriter<ChangeConveyorDirection>,
-  mut placed_tiles: EventWriter<UpdateTile>,
+  mut placed_tiles: EventWriter<TileUpdate>,
   mut tilemaps: Query<(Entity, &mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
   previous_tile: Option<Res<PreviouslyPlacedTile>>,
 ) {
