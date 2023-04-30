@@ -5,7 +5,8 @@ mod conveyor;
 mod vec2_traits;
 mod helpers;
 
-use conveyor::{prelude::*, PlayfieldSize};
+use bevy_egui::EguiPlugin;
+use conveyor::prelude::*;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
@@ -25,6 +26,7 @@ fn main() {
     .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
     .add_plugin(TilemapPlugin)
     .add_plugin(PixelCameraPlugin)
+    .add_plugin(EguiPlugin)
     .add_plugin(ConveyorBuildPlugin {
       playfield_size: PlayfieldSize(UVec2 { x: 32, y: 32 }),
     })

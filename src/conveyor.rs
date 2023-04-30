@@ -2,10 +2,12 @@ use std::fmt::Display;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
+use bevy_egui::egui::Pos2;
+use bevy_egui::{egui, EguiContexts};
 
 use crate::camera::prelude::update_cursor_pos;
 
-use self::placement::systems::*;
+use self::placement::{systems::*, PreviouslyPlacedTile};
 use self::removal::remove_conveyor_drag;
 use self::update::systems::*;
 
@@ -19,12 +21,18 @@ pub mod prelude {
   pub use super::PlayfieldSize;
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Component)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Component, Reflect)]
 pub enum ConveyorDirection {
   North,
   South,
   East,
   West,
+}
+
+impl Default for ConveyorDirection {
+  fn default() -> Self {
+    ConveyorDirection::North
+  }
 }
 
 impl Display for ConveyorDirection {
@@ -133,7 +141,12 @@ fn setup_conveyor(
 
   for x in 0..background_map_size.x {
     for y in 0..background_map_size.y {
-      let texture_index = match (x == 0, y == 0, x == background_map_size.x - 1, y == background_map_size.y - 1) {
+      let texture_index = match (
+        x == 0,
+        y == 0,
+        x == background_map_size.x - 1,
+        y == background_map_size.y - 1,
+      ) {
         (true, _, _, true) => 13,
         (true, true, _, _) => 12,
         (_, true, true, _) => 11,
@@ -177,21 +190,7 @@ fn setup_conveyor(
     x: playfield_size.0.x,
     y: playfield_size.0.y,
   };
-  let mut playfield_storage = TileStorage::empty(background_map_size);
-
-  for x in 0..playfield_map_size.x {
-    for y in 0..playfield_map_size.y {
-      let position = TilePos { x, y };
-      let tile_entity = commands
-        .spawn(TileBundle {
-          position,
-          tilemap_id: TilemapId(playfield_tilemap),
-          ..default()
-        })
-        .id();
-      playfield_storage.set(&position, tile_entity);
-    }
-  }
+  let playfield_storage = TileStorage::empty(background_map_size);
 
   commands
     .entity(playfield_tilemap)
@@ -212,10 +211,50 @@ pub struct ConveyorBuildPlugin {
   pub playfield_size: PlayfieldSize,
 }
 
+#[derive(Default, Resource)]
+struct UiState {
+  // egui_texture_handle: Option<egui::TextureHandle>,
+  conveyor_atlas: Option<Handle<TextureAtlas>>,
+}
+
+fn setup_conveyor_ui(
+  mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+  asset_server: Res<AssetServer>,
+  mut ui_state: ResMut<UiState>,
+) {
+  let conveyor_texture = asset_server.load("conveyor.png");
+  let texture_atlas =
+    TextureAtlas::from_grid(conveyor_texture, Vec2::new(16.0, 16.0), 29, 1, None, None);
+  let texture_atlas_handle = texture_atlases.add(texture_atlas);
+  ui_state.conveyor_atlas = Some(texture_atlas_handle);
+}
+
+fn conveyor_window(
+  // mut ui_state: ResMut<UiState>,
+  previous_tile: Res<PreviouslyPlacedTile>,
+  mut contexts: EguiContexts,
+  asset_server: Res<AssetServer>,
+) {
+  let image = contexts.add_image(asset_server.load("conveyor.png"));
+
+  let ctx = contexts.ctx_mut();
+
+  let offset = 16.0 * previous_tile.direction.texture_index() as f32;
+  let uv = egui::Rect::from_two_pos(
+    Pos2::new(offset / 464.0, 0.0),
+    Pos2::new((16.0 + offset) / 464.0, 1.0),
+  );
+
+  egui::TopBottomPanel::bottom("Window").show(ctx, |ui| {
+    ui.add(egui::widgets::Image::new(image, [64.0, 64.0]).uv(uv))
+  });
+}
+
 impl Plugin for ConveyorBuildPlugin {
   fn build(&self, app: &mut bevy::prelude::App) {
     app
       .init_resource::<placement::PreviousMouseConveyorInput>()
+      .init_resource::<PreviouslyPlacedTile>()
       .insert_resource(self.playfield_size.clone())
       .add_event::<placement::TileUpdate>()
       .add_event::<placement::PlaceConveyor>()
@@ -233,6 +272,7 @@ impl Plugin for ConveyorBuildPlugin {
         )
           .after(update_cursor_pos)
           .chain(),
-      );
+      )
+      .add_system(conveyor_window.after(place_tiles_drag));
   }
 }

@@ -10,7 +10,7 @@ use crate::{
   vec2_traits::{AsIVec2, TilePosFromSigned},
 };
 
-use super::{placement::TileUpdate, ConveyorTileLayer, removal::RemoveConveyor};
+use super::{placement::TileUpdate, removal::RemoveConveyor, ConveyorTileLayer};
 
 pub mod systems {
   pub use super::conveyor_tile_update;
@@ -30,41 +30,44 @@ pub fn detect_conveyor_input(
   let cursor_pos = cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y);
   let cursor_pos = (cursor_pos + Vec2::new(0.5, 0.5)).as_ivec2();
 
-  match (mouse_click.pressed(MouseButton::Left), mouse_click.pressed(MouseButton::Right)) {
+  match (
+    mouse_click.pressed(MouseButton::Left),
+    mouse_click.pressed(MouseButton::Right),
+  ) {
     (true, false) => {
       match previous_mouse_conveyor_input.add_conveyor {
         Some(previous_pos) => {
           if cursor_pos != previous_pos {
             place_tile_event.send(PlaceConveyor::new(previous_pos, cursor_pos));
           }
-        },
+        }
         None => place_tile_event.send(PlaceConveyor::new_single_pos(cursor_pos)),
       }
       previous_mouse_conveyor_input.add_conveyor = Some(cursor_pos);
       previous_mouse_conveyor_input.remove_conveyor = None;
-    },
+    }
     (false, true) => {
       match previous_mouse_conveyor_input.remove_conveyor {
         Some(previous_pos) => {
           if cursor_pos != previous_pos {
             remove_tile_event.send(RemoveConveyor::new(previous_pos, cursor_pos));
           }
-        },
+        }
         None => remove_tile_event.send(RemoveConveyor::new_single_pos(cursor_pos)),
       }
       previous_mouse_conveyor_input.add_conveyor = None;
       previous_mouse_conveyor_input.remove_conveyor = Some(cursor_pos);
-    },
+    }
     _ => {
       previous_mouse_conveyor_input.add_conveyor = None;
       previous_mouse_conveyor_input.remove_conveyor = None;
-    },
+    }
   }
 }
 
 #[derive(Debug)]
 pub struct ChangeConveyorDirection {
-  pub entity: Entity,
+  pub position: TilePos,
   pub direction: ConveyorDirection,
 }
 
@@ -72,13 +75,14 @@ pub fn update_tile_direction(
   mut change_conveyor_detection: EventReader<ChangeConveyorDirection>,
   mut conveyor_tile_updates: EventWriter<TileUpdate>,
   mut tiles: Query<(Entity, &mut ConveyorDirection, &TilePos)>,
+  mut tilemap: Query<(&TileStorage, &ConveyorTileLayer)>,
 ) {
+  let Ok((tile_storage, _)) = tilemap.get_single_mut() else { return; };
   if change_conveyor_detection.len() != 0 {}
 
   for change_conveyor_direction in change_conveyor_detection.iter() {
-    let Ok(mut tile) = tiles.get_mut(change_conveyor_direction.entity) else {
-      continue;
-    };
+    let Some(conveyor_entity) = tile_storage.get(&change_conveyor_direction.position) else { continue; };
+    let Ok(mut tile) = tiles.get_mut(conveyor_entity) else { continue; };
     conveyor_tile_updates.send(TileUpdate { pos: *tile.2 });
     *tile.1 = change_conveyor_direction.direction;
   }

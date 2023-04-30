@@ -7,8 +7,10 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.10.1"
-bevy_ecs_tilemap = {version = "0.10.0", features = ["atlas"] }
+bevy_ecs_tilemap = {version = "^0.10", features = ["atlas"] }
 bevy_pixel_camera = "^0.4"
+bevy_egui = "^0.20"
+bevy-inspector-egui = "^0.18"
 
 [profile.dev]
 # opt-level = 1
