@@ -4,19 +4,13 @@ use bevy_ecs_tilemap::{
   tiles::{TileBundle, TilePos, TileStorage, TileTextureIndex},
 };
 
-use crate::{input::chained_tile::ChainedTilePlaceDirection, vec2_traits::*, ConveyorDirection};
+use crate::{input::chained_tile::ChainedTilePlaceDirection, vec2_traits::*};
 
-pub mod prelude {
-  pub use super::UpdatedTile;
-}
+use super::prelude::*;
 
 pub mod plugin_exports {
   pub use super::PreviousPlaceTileAttempt;
-}
-
-#[derive(Debug, Clone)]
-pub struct UpdatedTile {
-  pub pos: TilePos,
+  pub use super::place_tile;
 }
 
 pub fn spawn_tile(
@@ -59,7 +53,7 @@ fn update_tile_direction(
   placed_tiles.send(UpdatedTile { pos: position });
 }
 
-fn place_tile(
+pub fn place_tile(
   mut commands: &mut Commands,
   position: IVec2,
   tile_storage: &mut TileStorage,

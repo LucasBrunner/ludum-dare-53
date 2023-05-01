@@ -1,14 +1,12 @@
 use bevy::prelude::*;
 
-pub use crate::conveyor::ConveyorDirection;
+pub use crate::tile::ConveyorDirection;
 
 pub mod prelude {
-  pub use super::ConveyorDirection;
   pub use super::SelectedTileDirection;
 }
 
 pub mod plugin_exports {
-  pub use super::ConveyorDirection;
   pub use super::SelectedTileDirection;
   pub use super::change_selected_tile_direction;
 }

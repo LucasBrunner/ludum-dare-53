@@ -1,7 +1,11 @@
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 
-use super::placement::UpdatedTile;
+use super::UpdatedTile;
+
+pub mod plugin_exports {
+  pub use super::despawn_conveyor;
+}
 
 pub fn despawn_conveyor(
   commands: &mut Commands,

@@ -1,12 +1,9 @@
 use bevy::{prelude::*, utils::HashSet};
 use bevy_ecs_tilemap::prelude::*;
 
-use crate::{
-  conveyor::ConveyorDirection,
-  vec2_traits::{AsIVec2, TilePosFromSigned},
-};
+use crate::vec2_traits::{AsIVec2, TilePosFromSigned};
 
-use super::{placement::UpdatedTile, ConveyorTileLayer};
+use super::{prelude::*, ConveyorTileLayer};
 
 pub mod systems {
   pub use super::conveyor_tile_update_graphics;

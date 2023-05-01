@@ -1,13 +1,13 @@
 #![allow(dead_code)]
 
 mod camera;
-mod conveyor;
+mod tile;
 mod helpers;
 mod input;
 mod vec2_traits;
 
 use bevy_egui::EguiPlugin;
-use conveyor::prelude::*;
+use tile::prelude::*;
 
 use bevy::{prelude::*, ecs::schedule::SystemSetConfig};
 use bevy_ecs_tilemap::prelude::*;

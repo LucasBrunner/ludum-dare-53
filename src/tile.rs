@@ -6,11 +6,14 @@ use bevy_egui::egui::{Align2, Id, Pos2, Style};
 use bevy_egui::{egui, EguiContexts};
 
 use crate::camera::prelude::*;
-use crate::input::chained_tile::{ChainedTileChangeEvent, ChainedTilePlaceDirection};
+use crate::helpers::grid_traversal::GridTraversal;
+use crate::input::chained_tile::{ChainedTileChangeEvent, ChainedTilePlaceDirection, ChainedTileChangePosition};
 use crate::input::prelude::tile_rotation::prelude::*;
 use crate::GameSystemSet;
+use crate::vec2_traits::TilePosFromSigned;
 
 use self::placement::plugin_exports::*;
+use self::removal::plugin_exports::*;
 use self::update_graphics::systems::*;
 
 pub mod placement;
@@ -20,6 +23,7 @@ pub mod update_graphics;
 pub mod prelude {
   pub use super::ConveyorBuildPlugin;
   pub use super::ConveyorDirection;
+  pub use super::UpdatedTile;
   pub use super::PlayfieldSize;
 }
 
@@ -313,7 +317,7 @@ impl Plugin for ConveyorBuildPlugin {
     app
       .init_resource::<PreviousPlaceTileAttempt>()
       .insert_resource(self.playfield_size.clone())
-      .add_event::<placement::UpdatedTile>()
+      .add_event::<UpdatedTile>()
       .add_event::<ChainedTileChangeEvent>()
       .add_startup_system(setup_conveyor)
       .add_systems(
@@ -329,6 +333,13 @@ impl Plugin for ConveyorBuildPlugin {
       )
       .add_system(conveyor_window.after(catch_chained_tile_change_events));
   }
+}
+
+#[derive(Debug, Clone)]
+pub struct UpdatedTile {
+  pub pos: TilePos,
+}
+
 pub fn catch_chained_tile_change_events(
   mut commands: Commands,
   mut place_tile_events: EventReader<ChainedTileChangeEvent>,
