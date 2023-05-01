@@ -7,30 +7,39 @@ use crate::{
     placement::{PlaceConveyor, PreviousMouseConveyorInput},
     ConveyorDirection,
   },
-  vec2_traits::{AsIVec2, TilePosFromSigned}, input::prelude::EguiCapturedResources,
+  vec2_traits::{AsIVec2, TilePosFromSigned},
 };
 
-use super::{placement::TileUpdate, removal::RemoveConveyor, ConveyorTileLayer};
+use super::{placement::{TileUpdate, PreviouslyPlacedTile}, removal::RemoveConveyor, ConveyorTileLayer};
 
 pub mod systems {
   pub use super::conveyor_tile_update;
   pub use super::detect_conveyor_input;
-  pub use super::update_tile_direction;
+  pub use super::rotate_conveyor_placement;
+  pub use super::update_conveyor_direction;
+}
+
+pub fn rotate_conveyor_placement(
+  mut previous_tile: ResMut<PreviouslyPlacedTile>,
+  keyboard_input: Res<Input<KeyCode>>,
+) {
+  if keyboard_input.just_pressed(KeyCode::R) {
+    previous_tile.direction = match keyboard_input.pressed(KeyCode::LShift) {
+        true => previous_tile.direction.rotate_counterclockwise(),
+        false => previous_tile.direction.rotate_clockwise(),
+    }
+  }
 }
 
 pub fn detect_conveyor_input(
-  captured_resources: Res<EguiCapturedResources>,
   cursor_pos: ResMut<CursorPos>,
   mouse_click: ResMut<Input<MouseButton>>,
+  mut previous_tile: ResMut<PreviouslyPlacedTile>,
   mut previous_mouse_conveyor_input: ResMut<PreviousMouseConveyorInput>,
   mut place_tile_event: EventWriter<PlaceConveyor>,
   mut remove_tile_event: EventWriter<RemoveConveyor>,
   mut tilemaps: Query<(&TilemapGridSize, &Transform, &ConveyorTileLayer)>,
 ) {
-  if captured_resources.mouse_captured() {
-    return;
-  }
-  
   let Ok((grid_size, map_transform, _)) = tilemaps.get_single_mut() else { return; };
   let cursor_pos = cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y);
   let cursor_pos = (cursor_pos + Vec2::new(0.5, 0.5)).as_ivec2();
@@ -66,6 +75,7 @@ pub fn detect_conveyor_input(
     _ => {
       previous_mouse_conveyor_input.add_conveyor = None;
       previous_mouse_conveyor_input.remove_conveyor = None;
+      previous_tile.tile_pos = None;
     }
   }
 }
@@ -76,14 +86,13 @@ pub struct ChangeConveyorDirection {
   pub direction: ConveyorDirection,
 }
 
-pub fn update_tile_direction(
+pub fn update_conveyor_direction(
   mut change_conveyor_detection: EventReader<ChangeConveyorDirection>,
   mut conveyor_tile_updates: EventWriter<TileUpdate>,
   mut tiles: Query<(Entity, &mut ConveyorDirection, &TilePos)>,
   mut tilemap: Query<(&TileStorage, &ConveyorTileLayer)>,
 ) {
   let Ok((tile_storage, _)) = tilemap.get_single_mut() else { return; };
-  if change_conveyor_detection.len() != 0 {}
 
   for change_conveyor_direction in change_conveyor_detection.iter() {
     let Some(conveyor_entity) = tile_storage.get(&change_conveyor_direction.position) else { continue; };

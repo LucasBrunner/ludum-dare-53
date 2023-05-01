@@ -2,14 +2,15 @@ use std::fmt::Display;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
-use bevy_egui::egui::{Pos2, Id, Style, Align2};
+use bevy_egui::egui::{Align2, Id, Pos2, Style};
 use bevy_egui::{egui, EguiContexts};
 
+use crate::camera::prelude::*;
+use crate::input::prelude::*;
 use crate::GameSystemSet;
-use crate::camera::prelude::update_cursor_pos;
 
 use self::placement::{systems::*, PreviouslyPlacedTile};
-use self::removal::remove_conveyor_drag;
+use self::removal::remove_conveyors_drag;
 use self::update::systems::*;
 
 pub mod placement;
@@ -114,6 +115,24 @@ impl ConveyorDirection {
       ],
     }
   }
+
+  pub fn rotate_clockwise(&self) -> ConveyorDirection {
+    match self {
+        ConveyorDirection::North => ConveyorDirection::East,
+        ConveyorDirection::South => ConveyorDirection::West,
+        ConveyorDirection::East => ConveyorDirection::South,
+        ConveyorDirection::West => ConveyorDirection::North,
+    }
+  }
+
+  pub fn rotate_counterclockwise(&self) -> ConveyorDirection {
+    match self {
+        ConveyorDirection::North => ConveyorDirection::West,
+        ConveyorDirection::East => ConveyorDirection::North,
+        ConveyorDirection::South => ConveyorDirection::East,
+        ConveyorDirection::West => ConveyorDirection::South,
+    }
+  }
 }
 #[derive(Debug, Component)]
 pub struct BackgroundTileLayer;
@@ -214,9 +233,7 @@ pub struct ConveyorBuildPlugin {
 
 impl ConveyorBuildPlugin {
   pub fn new(playfield_size: PlayfieldSize) -> ConveyorBuildPlugin {
-    ConveyorBuildPlugin {
-      playfield_size,
-    }
+    ConveyorBuildPlugin { playfield_size }
   }
 }
 
@@ -239,7 +256,6 @@ fn setup_conveyor_ui(
 }
 
 fn conveyor_window(
-  // mut ui_state: ResMut<UiState>,
   previous_tile: Res<PreviouslyPlacedTile>,
   mut contexts: EguiContexts,
   asset_server: Res<AssetServer>,
@@ -254,11 +270,13 @@ fn conveyor_window(
     Pos2::new((16.0 + offset) / 464.0, 1.0),
   );
 
-  egui::Area::new(Id::null()).anchor(Align2::RIGHT_BOTTOM, egui::Vec2::ZERO).show(ctx, |ui| {
-    egui::Frame::side_top_panel(&Style::default()).show(ui, |ui| {
-      ui.add(egui::widgets::Image::new(image, [64.0, 64.0]).uv(uv));
-    })
-  });
+  egui::Area::new(Id::null())
+    .anchor(Align2::RIGHT_BOTTOM, egui::Vec2::ZERO)
+    .show(ctx, |ui| {
+      egui::Frame::side_top_panel(&Style::default()).show(ui, |ui| {
+        ui.add(egui::widgets::Image::new(image, [64.0, 64.0]).uv(uv));
+      })
+    });
 }
 
 impl Plugin for ConveyorBuildPlugin {
@@ -274,17 +292,23 @@ impl Plugin for ConveyorBuildPlugin {
       .add_startup_system(setup_conveyor)
       .add_systems(
         (
-          detect_conveyor_input,
-          place_tiles_drag,
-          remove_conveyor_drag,
+          detect_conveyor_input.run_if(not(mouse_captured)),
+          rotate_conveyor_placement.run_if(not(keyboard_captured)),
+        )
+          .in_set(GameSystemSet::InputCollection),
+      )
+      .add_systems(
+        (
+          place_conveyors_drag,
+          remove_conveyors_drag,
           apply_system_buffers,
-          update_tile_direction,
+          update_conveyor_direction,
           conveyor_tile_update,
         )
           .after(update_cursor_pos)
           .in_set(GameSystemSet::Conveyor)
           .chain(),
       )
-      .add_system(conveyor_window.after(place_tiles_drag));
+      .add_system(conveyor_window.after(place_conveyors_drag));
   }
 }

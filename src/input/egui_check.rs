@@ -1,5 +1,10 @@
-use bevy::{prelude::{Query, ResMut, Resource}, reflect::Reflect};
+use bevy::{prelude::{Query, ResMut, Resource, Res}, reflect::Reflect};
 use bevy_egui::EguiContextQuery;
+
+pub mod prelude {
+  pub use super::mouse_captured;
+  pub use super::keyboard_captured;
+}
 
 #[derive(Debug, Resource, Default, Reflect)]
 pub struct EguiCapturedResources {
@@ -30,4 +35,12 @@ pub fn check_egui_captured_resources(
         acc.keyboard |= egu_ctx.wants_keyboard_input();
         acc
       })
+}
+
+pub fn mouse_captured(captured_resources: Res<EguiCapturedResources>) -> bool {
+  captured_resources.mouse
+}
+
+pub fn keyboard_captured(captured_resources: Res<EguiCapturedResources>) -> bool {
+  captured_resources.mouse
 }

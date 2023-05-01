@@ -16,7 +16,7 @@ pub mod prelude {
 }
 
 pub mod systems {
-  pub use super::place_tiles_drag;
+  pub use super::place_conveyors_drag;
 }
 
 #[derive(Debug, Clone)]
@@ -44,19 +44,6 @@ pub struct PreviouslyPlacedTile {
   pub tile_pos: Option<TilePos>,
   pub direction: ConveyorDirection,
 }
-
-// impl OptionalResource<PreviouslyPlacedTile> for Option<Res<'_, PreviouslyPlacedTile>> {
-//   fn resource_as_option(&self) -> Option<PreviouslyPlacedTile> {
-//     match self {
-//       Some(res) => Some(PreviouslyPlacedTile {
-//         tile_pos: res.tile_pos,
-//         entity: res.entity,
-//         direction: res.direction,
-//       }),
-//       None => None,
-//     }
-//   }
-// }
 
 #[derive(Debug)]
 pub struct PlaceConveyor {
@@ -106,7 +93,7 @@ pub fn place_tile(
   change_conveyor_detection: &mut EventWriter<ChangeConveyorDirection>,
   mut placed_tiles: &mut EventWriter<TileUpdate>,
 ) {
-  let mut input_direction = None;
+  let mut input_direction = previous_tile.direction;
   if let Some(previous_tile_pos) = previous_tile.tile_pos {
     let diff = position - previous_tile_pos.as_ivec2();
     let direction = match (diff.x, diff.y) {
@@ -121,9 +108,7 @@ pub fn place_tile(
         position: previous_tile_pos,
         direction,
       });
-      input_direction = Some(direction);
-    } else {
-      input_direction = Some(previous_tile.direction);
+      input_direction = direction;
     }
   }
 
@@ -131,18 +116,17 @@ pub fn place_tile(
     && position.x < tilemap_size.x as i32
     && position.y < tilemap_size.y as i32
   {
-    let direction = input_direction.unwrap_or(ConveyorDirection::North);
     let position = position.as_uvec2().to_tile_pos();
     spawn_tile(
       commands,
       position,
       tile_storage,
       tilemap_entity,
-      direction,
+      input_direction,
       &mut placed_tiles,
     );
     previous_tile.tile_pos = Some(position);
-    previous_tile.direction = direction;
+    previous_tile.direction = input_direction;
   }
 }
 
@@ -171,7 +155,7 @@ pub fn place_tile_line(
   }
 }
 
-pub fn place_tiles_drag(
+pub fn place_conveyors_drag(
   mut commands: Commands,
   mut place_tile_event: EventReader<PlaceConveyor>,
   mut change_conveyor_detection: EventWriter<ChangeConveyorDirection>,

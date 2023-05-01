@@ -7,14 +7,13 @@ mod input;
 mod vec2_traits;
 
 use bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::ResourceInspectorPlugin;
 use conveyor::prelude::*;
 
 use bevy::{prelude::*, ecs::schedule::SystemSetConfig};
 use bevy_ecs_tilemap::prelude::*;
 use bevy_pixel_camera::{PixelCameraBundle, PixelCameraPlugin};
 use camera::prelude::*;
-use input::{prelude::EguiCapturedResources, InputPlugin};
+use input::prelude::*;
 
 fn startup(mut commands: Commands) {
   commands.spawn(PixelCameraBundle::from_zoom(4));
@@ -48,7 +47,6 @@ fn main() {
     .add_plugin(PixelCameraPlugin)
     .add_plugin(EguiPlugin)
     .add_plugin(InputPlugin)
-    .add_plugin(ResourceInspectorPlugin::<EguiCapturedResources>::default())
     .add_plugin(ConveyorBuildPlugin::new(PlayfieldSize(UVec2::new(32, 32))))
     .insert_resource(ClearColor(Color::hex("151D28").unwrap()))
     .init_resource::<CursorPos>()

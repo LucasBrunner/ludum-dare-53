@@ -7,7 +7,8 @@ use self::egui_check::*;
 mod egui_check;
 
 pub mod prelude {
-  pub use super::egui_check::EguiCapturedResources;
+  pub use super::InputPlugin;
+  pub use super::egui_check::prelude::*;
 }
 
 #[derive(Debug, Default)]

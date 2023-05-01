@@ -40,7 +40,7 @@ fn despawn_conveyor_line(
   }
 }
 
-pub fn remove_conveyor_drag(
+pub fn remove_conveyors_drag(
   mut commands: Commands,
   mut remove_conveyor_event: EventReader<RemoveConveyor>,
   mut removed_tiles: EventWriter<TileUpdate>,
