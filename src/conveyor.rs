@@ -62,6 +62,13 @@ impl ConveyorDirection {
     }
   }
 
+  pub fn reverse(&self, reverse: bool) -> ConveyorDirection {
+    match reverse {
+        true => self.opposite(),
+        false => *self,
+    }
+  }
+
   pub fn name(&self) -> &'static str {
     match self {
       ConveyorDirection::North => "North",

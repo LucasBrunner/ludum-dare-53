@@ -92,6 +92,7 @@ pub fn place_tile(
   previous_tile: &mut PreviouslyPlacedTile,
   change_conveyor_detection: &mut EventWriter<ChangeConveyorDirection>,
   mut placed_tiles: &mut EventWriter<TileUpdate>,
+  reverse_direction: bool,
 ) {
   let mut input_direction = previous_tile.direction;
   if let Some(previous_tile_pos) = previous_tile.tile_pos {
@@ -104,10 +105,12 @@ pub fn place_tile(
       _ => None,
     };
     if let Some(direction) = direction {
-      change_conveyor_detection.send(ChangeConveyorDirection {
-        position: previous_tile_pos,
-        direction,
-      });
+      if input_direction == direction || !reverse_direction {
+        change_conveyor_detection.send(ChangeConveyorDirection {
+          position: previous_tile_pos,
+          direction: direction.reverse(reverse_direction),
+        });
+      }
       input_direction = direction;
     }
   }
@@ -122,7 +125,7 @@ pub fn place_tile(
       position,
       tile_storage,
       tilemap_entity,
-      input_direction,
+      input_direction.reverse(reverse_direction),
       &mut placed_tiles,
     );
     previous_tile.tile_pos = Some(position);
@@ -140,6 +143,7 @@ pub fn place_tile_line(
   tilemap_size: &TilemapSize,
   mut previous_tile: &mut PreviouslyPlacedTile,
   mut placed_tiles: &mut EventWriter<TileUpdate>,
+  reverse_direction: bool,
 ) {
   for position in GridTraversal::new(from, to) {
     place_tile(
@@ -151,6 +155,7 @@ pub fn place_tile_line(
       &mut previous_tile,
       &mut change_conveyor_detection,
       &mut placed_tiles,
+      reverse_direction,
     );
   }
 }
@@ -162,6 +167,7 @@ pub fn place_conveyors_drag(
   mut placed_tiles: EventWriter<TileUpdate>,
   mut tilemaps: Query<(Entity, &mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
   mut previous_tile: ResMut<PreviouslyPlacedTile>,
+  keyboard_input: Res<Input<KeyCode>>,
 ) {
   let Ok((tilemap_entity, mut tile_storage, tilemap_size, _)) = tilemaps.get_single_mut() else { return; };
   for place_tile_event in place_tile_event.iter() {
@@ -179,6 +185,7 @@ pub fn place_conveyors_drag(
           &mut previous_tile,
           &mut change_conveyor_detection,
           &mut placed_tiles,
+          false,
         );
       }
       continue;
@@ -193,6 +200,7 @@ pub fn place_conveyors_drag(
         &tilemap_size,
         &mut previous_tile,
         &mut placed_tiles,
+        keyboard_input.pressed(KeyCode::LShift)
       )
     }
   }
