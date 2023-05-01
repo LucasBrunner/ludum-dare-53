@@ -6,11 +6,11 @@ use bevy_egui::egui::{Align2, Id, Pos2, Style};
 use bevy_egui::{egui, EguiContexts};
 
 use crate::camera::prelude::*;
-use crate::input::prelude::*;
+use crate::input::chained_tile::{ChainedTileChangeEvent, ChainedTilePlaceDirection};
+use crate::input::prelude::tile_rotation::prelude::*;
 use crate::GameSystemSet;
 
-use self::placement::{systems::*, PreviouslyPlacedTile};
-use self::removal::remove_conveyors_drag;
+use self::placement::plugin_exports::*;
 use self::update::systems::*;
 
 pub mod placement;
@@ -67,6 +67,10 @@ impl ConveyorDirection {
         true => self.opposite(),
         false => *self,
     }
+  }
+
+  pub fn apply_place_direction(&self, direction: ChainedTilePlaceDirection) -> ConveyorDirection {
+    self.reverse(direction == ChainedTilePlaceDirection::Revesed)
   }
 
   pub fn name(&self) -> &'static str {
@@ -139,6 +143,24 @@ impl ConveyorDirection {
         ConveyorDirection::South => ConveyorDirection::East,
         ConveyorDirection::West => ConveyorDirection::South,
     }
+  }
+
+  fn from_x_y(x: i32, y: i32) -> Option<ConveyorDirection> {
+    match (x, y) {
+      (0, 1) => Some(ConveyorDirection::North),
+      (1, 0) => Some(ConveyorDirection::East),
+      (0, -1) => Some(ConveyorDirection::South),
+      (-1, 0) => Some(ConveyorDirection::West),
+      _ => None
+    }
+  }
+
+  pub fn from_vec2(vector: Vec2) -> Option<ConveyorDirection> {
+    Self::from_x_y(vector.x.signum() as i32, vector.y.signum() as i32)
+  }
+
+  pub fn from_ivec2(vector: IVec2) -> Option<ConveyorDirection> {
+    Self::from_x_y(vector.x.signum(), vector.y.signum())
   }
 }
 #[derive(Debug, Component)]
@@ -263,7 +285,7 @@ fn setup_conveyor_ui(
 }
 
 fn conveyor_window(
-  previous_tile: Res<PreviouslyPlacedTile>,
+  tile_rotation: Res<SelectedTileDirection>,
   mut contexts: EguiContexts,
   asset_server: Res<AssetServer>,
 ) {
@@ -271,7 +293,7 @@ fn conveyor_window(
 
   let ctx = contexts.ctx_mut();
 
-  let offset = 16.0 * previous_tile.direction.texture_index() as f32;
+  let offset = 16.0 * tile_rotation.direction.texture_index() as f32;
   let uv = egui::Rect::from_two_pos(
     Pos2::new(offset / 464.0, 0.0),
     Pos2::new((16.0 + offset) / 464.0, 1.0),
@@ -289,33 +311,22 @@ fn conveyor_window(
 impl Plugin for ConveyorBuildPlugin {
   fn build(&self, app: &mut bevy::prelude::App) {
     app
-      .init_resource::<placement::PreviousMouseConveyorInput>()
-      .init_resource::<PreviouslyPlacedTile>()
+      .init_resource::<PreviousPlaceTileAttempt>()
       .insert_resource(self.playfield_size.clone())
-      .add_event::<placement::TileUpdate>()
-      .add_event::<placement::PlaceConveyor>()
-      .add_event::<removal::RemoveConveyor>()
-      .add_event::<update::ChangeConveyorDirection>()
+      .add_event::<placement::UpdatedTile>()
+      .add_event::<ChainedTileChangeEvent>()
       .add_startup_system(setup_conveyor)
       .add_systems(
         (
-          detect_conveyor_input.run_if(not(mouse_captured)),
-          rotate_conveyor_placement.run_if(not(keyboard_captured)),
-        )
-          .in_set(GameSystemSet::InputCollection),
-      )
-      .add_systems(
-        (
-          place_conveyors_drag,
-          remove_conveyors_drag,
+          catch_chained_tile_change_events,
           apply_system_buffers,
-          update_conveyor_direction,
+          // update_conveyor_direction,
           conveyor_tile_update,
         )
           .after(update_cursor_pos)
           .in_set(GameSystemSet::Conveyor)
           .chain(),
       )
-      .add_system(conveyor_window.after(place_conveyors_drag));
+      .add_system(conveyor_window.after(catch_chained_tile_change_events));
   }
 }

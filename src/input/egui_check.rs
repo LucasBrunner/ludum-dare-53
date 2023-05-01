@@ -6,6 +6,13 @@ pub mod prelude {
   pub use super::keyboard_captured;
 }
 
+pub mod plugin_exports {
+  pub use super::mouse_captured;
+  pub use super::keyboard_captured;
+  pub use super::check_egui_captured_resources;
+  pub use super::EguiCapturedResources;
+}
+
 #[derive(Debug, Resource, Default, Reflect)]
 pub struct EguiCapturedResources {
   mouse: bool,

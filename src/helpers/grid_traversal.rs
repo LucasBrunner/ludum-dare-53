@@ -30,6 +30,13 @@ impl GridTraversal {
       vector,
     }
   }
+
+  /// The amount of tiles returned by the iterator will increase by this amount. 
+  /// The vector of the line being stepped along will not change.
+  pub fn add_iterations(mut self, amount: usize) -> GridTraversal {
+    self.iterations_left += amount;
+    self
+  }
 }
 
 impl Iterator for GridTraversal {

@@ -2,104 +2,14 @@ use bevy::{prelude::*, utils::HashSet};
 use bevy_ecs_tilemap::prelude::*;
 
 use crate::{
-  camera::prelude::CursorPos,
-  conveyor::{
-    placement::{PlaceConveyor, PreviousMouseConveyorInput},
-    ConveyorDirection,
-  },
+  conveyor::ConveyorDirection,
   vec2_traits::{AsIVec2, TilePosFromSigned},
 };
 
-use super::{placement::{TileUpdate, PreviouslyPlacedTile}, removal::RemoveConveyor, ConveyorTileLayer};
+use super::{placement::UpdatedTile, ConveyorTileLayer};
 
 pub mod systems {
   pub use super::conveyor_tile_update;
-  pub use super::detect_conveyor_input;
-  pub use super::rotate_conveyor_placement;
-  pub use super::update_conveyor_direction;
-}
-
-pub fn rotate_conveyor_placement(
-  mut previous_tile: ResMut<PreviouslyPlacedTile>,
-  keyboard_input: Res<Input<KeyCode>>,
-) {
-  if keyboard_input.just_pressed(KeyCode::R) {
-    previous_tile.direction = match keyboard_input.pressed(KeyCode::LShift) {
-        true => previous_tile.direction.rotate_counterclockwise(),
-        false => previous_tile.direction.rotate_clockwise(),
-    }
-  }
-}
-
-pub fn detect_conveyor_input(
-  cursor_pos: ResMut<CursorPos>,
-  mouse_click: ResMut<Input<MouseButton>>,
-  mut previous_tile: ResMut<PreviouslyPlacedTile>,
-  mut previous_mouse_conveyor_input: ResMut<PreviousMouseConveyorInput>,
-  mut place_tile_event: EventWriter<PlaceConveyor>,
-  mut remove_tile_event: EventWriter<RemoveConveyor>,
-  mut tilemaps: Query<(&TilemapGridSize, &Transform, &ConveyorTileLayer)>,
-) {
-  let Ok((grid_size, map_transform, _)) = tilemaps.get_single_mut() else { return; };
-  let cursor_pos = cursor_pos.to_map_pos(map_transform) / Vec2::new(grid_size.x, grid_size.y);
-  let cursor_pos = (cursor_pos + Vec2::new(0.5, 0.5)).as_ivec2();
-
-  match (
-    mouse_click.pressed(MouseButton::Left),
-    mouse_click.pressed(MouseButton::Right),
-  ) {
-    (true, false) => {
-      match previous_mouse_conveyor_input.add_conveyor {
-        Some(previous_pos) => {
-          if cursor_pos != previous_pos {
-            place_tile_event.send(PlaceConveyor::new(previous_pos, cursor_pos));
-          }
-        }
-        None => place_tile_event.send(PlaceConveyor::new_single_pos(cursor_pos)),
-      }
-      previous_mouse_conveyor_input.add_conveyor = Some(cursor_pos);
-      previous_mouse_conveyor_input.remove_conveyor = None;
-    }
-    (false, true) => {
-      match previous_mouse_conveyor_input.remove_conveyor {
-        Some(previous_pos) => {
-          if cursor_pos != previous_pos {
-            remove_tile_event.send(RemoveConveyor::new(previous_pos, cursor_pos));
-          }
-        }
-        None => remove_tile_event.send(RemoveConveyor::new_single_pos(cursor_pos)),
-      }
-      previous_mouse_conveyor_input.add_conveyor = None;
-      previous_mouse_conveyor_input.remove_conveyor = Some(cursor_pos);
-    }
-    _ => {
-      previous_mouse_conveyor_input.add_conveyor = None;
-      previous_mouse_conveyor_input.remove_conveyor = None;
-      previous_tile.tile_pos = None;
-    }
-  }
-}
-
-#[derive(Debug)]
-pub struct ChangeConveyorDirection {
-  pub position: TilePos,
-  pub direction: ConveyorDirection,
-}
-
-pub fn update_conveyor_direction(
-  mut change_conveyor_detection: EventReader<ChangeConveyorDirection>,
-  mut conveyor_tile_updates: EventWriter<TileUpdate>,
-  mut tiles: Query<(Entity, &mut ConveyorDirection, &TilePos)>,
-  mut tilemap: Query<(&TileStorage, &ConveyorTileLayer)>,
-) {
-  let Ok((tile_storage, _)) = tilemap.get_single_mut() else { return; };
-
-  for change_conveyor_direction in change_conveyor_detection.iter() {
-    let Some(conveyor_entity) = tile_storage.get(&change_conveyor_direction.position) else { continue; };
-    let Ok(mut tile) = tiles.get_mut(conveyor_entity) else { continue; };
-    conveyor_tile_updates.send(TileUpdate { pos: *tile.2 });
-    *tile.1 = change_conveyor_direction.direction;
-  }
 }
 
 #[derive(Debug)]
@@ -112,6 +22,7 @@ enum ConveyorNeighbor {
 trait ToTileTextureIndex<T, U> {
   fn get_tile_texture_index(&self, input: T) -> U;
 }
+
 mod ttti {
   use super::ConveyorNeighbor::*;
   use super::*;
@@ -145,7 +56,7 @@ mod ttti {
 }
 
 pub fn conveyor_tile_update(
-  mut conveyor_tile_updates: EventReader<TileUpdate>,
+  mut conveyor_tile_updates: EventReader<UpdatedTile>,
   tilemaps: Query<(&mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
   mut tiles: Query<(Entity, &mut TileTextureIndex, &ConveyorDirection)>,
 ) {
