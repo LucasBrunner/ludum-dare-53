@@ -11,11 +11,11 @@ use crate::input::prelude::tile_rotation::prelude::*;
 use crate::GameSystemSet;
 
 use self::placement::plugin_exports::*;
-use self::update::systems::*;
+use self::update_graphics::systems::*;
 
 pub mod placement;
 pub mod removal;
-pub mod update;
+pub mod update_graphics;
 
 pub mod prelude {
   pub use super::ConveyorBuildPlugin;
@@ -321,7 +321,7 @@ impl Plugin for ConveyorBuildPlugin {
           catch_chained_tile_change_events,
           apply_system_buffers,
           // update_conveyor_direction,
-          conveyor_tile_update,
+          conveyor_tile_update_graphics,
         )
           .after(update_cursor_pos)
           .in_set(GameSystemSet::Conveyor)

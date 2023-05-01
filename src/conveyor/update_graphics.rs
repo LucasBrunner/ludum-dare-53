@@ -9,7 +9,7 @@ use crate::{
 use super::{placement::UpdatedTile, ConveyorTileLayer};
 
 pub mod systems {
-  pub use super::conveyor_tile_update;
+  pub use super::conveyor_tile_update_graphics;
 }
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ mod ttti {
   }
 }
 
-pub fn conveyor_tile_update(
+pub fn conveyor_tile_update_graphics(
   mut conveyor_tile_updates: EventReader<UpdatedTile>,
   tilemaps: Query<(&mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
   mut tiles: Query<(Entity, &mut TileTextureIndex, &ConveyorDirection)>,
