@@ -284,3 +284,69 @@ pub fn catch_chained_tile_change_events(
     }
   }
 }
+
+#[cfg(test)]
+mod tile_test {
+  use bevy::prelude::*;
+
+  use crate::input::chained_tile::{ChainedTileChangeType, TileType};
+
+  use super::*;
+
+  #[test]
+  fn place_single_conveyor() {
+    let mut app = App::new();
+  
+    app.add_plugin(ConveyorBuildPlugin { playfield_size: PlayfieldSize(UVec2::new(8, 8)), include_background: false, include_textures: false});
+
+    app.setup();
+  
+    app.update();
+  
+    app.world.send_event(ChainedTileChangeEvent {
+      position: ChainedTileChangePosition::Single(IVec2::ONE),
+      change_type: ChainedTileChangeType::Put { tile_type: TileType::Conveyor, chain: false, direction: ChainedTilePlaceDirection::Normal }
+    });
+  
+    app.update();
+
+    let mut tiles = app.world.query::<(&TilePos, &TileTextureIndex, &ConveyorDirection)>();
+
+    let (tile_pos, tile_texture_index, conveyor_direction) = tiles.get_single_mut(&mut app.world).unwrap();
+
+    assert_eq!(*tile_pos, TilePos { x: 1, y:1 });
+    assert_eq!(tile_texture_index.0, ConveyorDirection::North.texture_index());
+    assert_eq!(*conveyor_direction, ConveyorDirection::North);
+  }
+
+  #[test]
+  fn place_conveyor_line() {
+    let mut app = App::new();
+  
+    app.add_plugin(ConveyorBuildPlugin { playfield_size: PlayfieldSize(UVec2::new(8, 8)), include_background: false, include_textures: false});
+
+    app.setup();
+  
+    app.update();
+  
+    app.world.send_event(ChainedTileChangeEvent {
+      position: ChainedTileChangePosition::StraightLine { start: IVec2::ONE, end: IVec2::new(1, 6) },
+      change_type: ChainedTileChangeType::Put { tile_type: TileType::Conveyor, chain: false, direction: ChainedTilePlaceDirection::Normal }
+    });
+  
+    app.update();
+
+    let mut tile_query = app.world.query::<(&TilePos, &TileTextureIndex, &ConveyorDirection)>();
+    let mut tiles = tile_query.iter(&app.world);
+
+    for i in 0..5 {
+      let (tile_pos, tile_texture_index, conveyor_direction) = tiles.next().unwrap();
+
+      assert_eq!(*tile_pos, TilePos { x: 1, y: 2 + i as u32 });
+      assert_eq!(tile_texture_index.0, ConveyorDirection::North.texture_index());
+      assert_eq!(*conveyor_direction, ConveyorDirection::North);
+    }
+
+    assert!(tiles.next().is_none());
+  }
+}
