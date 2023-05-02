@@ -210,7 +210,7 @@ pub enum TileSetupSystemSet {
 impl Plugin for ConveyorBuildPlugin {
   fn build(&self, app: &mut bevy::prelude::App) {
     app
-      .init_resource::<PreviousPlaceTileAttempt>()
+      .init_resource::<PreviousPlaceAttempt>()
       .insert_resource(self.playfield_size.clone())
       .add_event::<UpdatedTile>()
       .add_event::<ChainedTileChangeEvent>()
@@ -253,7 +253,7 @@ pub fn catch_chained_tile_change_events(
   mut place_tile_events: EventReader<ChainedTileChangeEvent>,
   mut placed_tiles: EventWriter<UpdatedTile>,
   mut tilemap: Query<(Entity, &mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
-  mut previous_tile_attempt: ResMut<PreviousPlaceTileAttempt>,
+  mut previous_tile_attempt: ResMut<PreviousPlaceAttempt>,
   selected_tile_rotation: Res<SelectedTileDirection>,
 ) {
   let Ok((tilemap_entity, mut tile_storage, tilemap_size, _)) = tilemap.get_single_mut() else { 
@@ -266,8 +266,8 @@ pub fn catch_chained_tile_change_events(
 
   for place_tile_event in place_tile_events.iter() {   
     let positions = match place_tile_event.position {
-      ChainedTileChangePosition::Single(position) => GridTraversal::new(position, position).add_iterations(1),
-      ChainedTileChangePosition::StraightLine { start, end } => GridTraversal::new(start, end),
+      ChainedTileChangePosition::Single(position) => GridTraversal::new(position, position).extend(1).skip(0),
+      ChainedTileChangePosition::StraightLine { start, end } => GridTraversal::new(start, end).extend(1).skip(1),
     };
 
     for position in positions {
