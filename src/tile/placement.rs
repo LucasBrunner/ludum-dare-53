@@ -62,15 +62,17 @@ pub fn place_tile(
   previous_place_attempt: &mut PreviousPlaceAttempt,
   mut placed_tiles: &mut EventWriter<UpdatedTile>,
   place_direction: ChainedTilePlaceDirection,
-  mut selected_tile_direction: ConveyorDirection,
+  selected_tile_direction: &mut ConveyorDirection,
   chain_with_previous_tile: bool,
 ) {
   if chain_with_previous_tile {
     let offset = new_tile_position - previous_place_attempt.position;
     if let Some(direction_moved) = ConveyorDirection::from_ivec2(offset) {
       let changed_direction = direction_moved != previous_place_attempt.direction;
-      let not_reversed = place_direction != ChainedTilePlaceDirection::Revesed;
-      if changed_direction && not_reversed {
+      let reversed = place_direction == ChainedTilePlaceDirection::Revesed;
+      let opposite_direction_as_previous = direction_moved == previous_place_attempt.direction;
+
+      if (changed_direction && !reversed) || (opposite_direction_as_previous && reversed) {
         let previous_tile_position = previous_place_attempt.position.to_tile_pos(&tilemap_size);
         if let Ok(previous_tile_position) = previous_tile_position {
           update_tile_direction(
@@ -82,7 +84,7 @@ pub fn place_tile(
           );
         }
       }
-      selected_tile_direction = direction_moved;
+      *selected_tile_direction = direction_moved.apply_place_direction(place_direction);
     }
   }
 
@@ -92,12 +94,12 @@ pub fn place_tile(
       new_tile_position,
       tile_storage,
       tilemap_entity,
-      selected_tile_direction.apply_place_direction(place_direction),
+      *selected_tile_direction,
       &mut placed_tiles,
     );
   }
   *previous_place_attempt = PreviousPlaceAttempt {
     position: new_tile_position,
-    direction: selected_tile_direction.apply_place_direction(place_direction),
+    direction: *selected_tile_direction,
   };
 }

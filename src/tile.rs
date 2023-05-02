@@ -254,7 +254,7 @@ pub fn catch_chained_tile_change_events(
   mut placed_tiles: EventWriter<UpdatedTile>,
   mut tilemap: Query<(Entity, &mut TileStorage, &TilemapSize, &ConveyorTileLayer)>,
   mut previous_tile_attempt: ResMut<PreviousPlaceAttempt>,
-  selected_tile_rotation: Res<SelectedTileDirection>,
+  mut selected_tile_rotation: ResMut<SelectedTileDirection>,
 ) {
   let Ok((tilemap_entity, mut tile_storage, tilemap_size, _)) = tilemap.get_single_mut() else { 
     error!(
@@ -273,7 +273,7 @@ pub fn catch_chained_tile_change_events(
     for position in positions {
       match place_tile_event.change_type {
         crate::input::chained_tile::ChainedTileChangeType::Put { tile_type: _tile_type, chain, direction } => {
-          place_tile(&mut commands, position, &mut tile_storage, tilemap_entity, tilemap_size, &mut previous_tile_attempt, &mut placed_tiles, direction, selected_tile_rotation.direction, chain);
+          place_tile(&mut commands, position, &mut tile_storage, tilemap_entity, tilemap_size, &mut previous_tile_attempt, &mut placed_tiles, direction, &mut selected_tile_rotation.direction, chain);
         },
         crate::input::chained_tile::ChainedTileChangeType::Delete => {
           if let Ok(position) = position.to_tile_pos(&tilemap_size) {

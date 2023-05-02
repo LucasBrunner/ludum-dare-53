@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_egui::{egui::{self, Align2, Pos2, Id}, EguiContexts};
 
 use crate::input::prelude::*;
@@ -8,10 +8,16 @@ pub mod plugin_exports {
 }
 
 pub fn conveyor_window(
+  primary_window: Query<&PrimaryWindow>,
   tile_rotation: Option<Res<SelectedTileDirection>>,
   mut contexts: EguiContexts,
   asset_server: Res<AssetServer>,
 ) {
+  if primary_window.iter().count() != 1 {
+    warn!("No primary window exists to display UI element on");
+    return;
+  }
+
   let Some(tile_rotation) = tile_rotation else { return; };
   let image = contexts.add_image(asset_server.load("conveyor.png"));
 
