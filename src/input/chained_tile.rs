@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::TilemapGridSize;
 
-use crate::{camera::prelude::CursorPos, tile::ConveyorTileLayer, vec2_traits::ToVec2};
+use crate::{camera::prelude::CursorPos, tile::prelude::ConveyorTileLayer, vec2_traits::ToVec2};
 
 pub mod prelude {
   pub use super::ChainedTileChangePosition;

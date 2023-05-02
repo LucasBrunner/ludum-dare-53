@@ -2,29 +2,30 @@ use std::fmt::Display;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
-use bevy_egui::egui::{Align2, Id, Pos2, Style};
-use bevy_egui::{egui, EguiContexts};
 
-use crate::camera::prelude::*;
 use crate::helpers::grid_traversal::GridTraversal;
 use crate::input::chained_tile::{ChainedTileChangeEvent, ChainedTilePlaceDirection, ChainedTileChangePosition};
-use crate::input::prelude::tile_rotation::prelude::*;
+use crate::input::prelude::*;
 use crate::GameSystemSet;
 use crate::vec2_traits::TilePosFromSigned;
 
+use self::background::plugin_exports::*;
 use self::placement::plugin_exports::*;
 use self::removal::plugin_exports::*;
 use self::update_graphics::systems::*;
+use self::playfield::plugin_exports::*;
 
 pub mod placement;
 pub mod removal;
 pub mod update_graphics;
+mod background;
+mod playfield;
 
 pub mod prelude {
   pub use super::ConveyorBuildPlugin;
   pub use super::ConveyorDirection;
   pub use super::UpdatedTile;
-  pub use super::PlayfieldSize;
+  pub use super::playfield::prelude::*;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Component, Reflect)]
@@ -167,106 +168,18 @@ impl ConveyorDirection {
     Self::from_x_y(vector.x.signum(), vector.y.signum())
   }
 }
-#[derive(Debug, Component)]
-pub struct BackgroundTileLayer;
-#[derive(Debug, Component)]
-pub struct ConveyorTileLayer;
-
-#[derive(Debug, Resource, Clone)]
-pub struct PlayfieldSize(pub UVec2);
-
-fn setup_conveyor(
-  playfield_size: Res<PlayfieldSize>,
-  mut commands: Commands,
-  asset_server: Res<AssetServer>,
-) {
-  let tile_size = TilemapTileSize { x: 16.0, y: 16.0 };
-  let grid_size = tile_size.into();
-  let map_type = TilemapType::Square;
-
-  let background_tilemap = commands.spawn_empty().id();
-  let background_texture_handle: Handle<Image> = asset_server.load("background.png");
-  let background_map_size = TilemapSize {
-    x: playfield_size.0.x + 2,
-    y: playfield_size.0.y + 2,
-  };
-  let mut background_storage = TileStorage::empty(background_map_size);
-
-  for x in 0..background_map_size.x {
-    for y in 0..background_map_size.y {
-      let texture_index = match (
-        x == 0,
-        y == 0,
-        x == background_map_size.x - 1,
-        y == background_map_size.y - 1,
-      ) {
-        (true, _, _, true) => 13,
-        (true, true, _, _) => 12,
-        (_, true, true, _) => 11,
-        (_, _, true, true) => 10,
-        (_, _, true, _) => 9,
-        (_, _, _, true) => 8,
-        (true, _, _, _) => 7,
-        (_, true, _, _) => 6,
-        _ => 1,
-      };
-      let position = TilePos { x, y };
-      let tile_entity = commands
-        .spawn(TileBundle {
-          position,
-          tilemap_id: TilemapId(background_tilemap),
-          texture_index: TileTextureIndex(texture_index),
-          ..default()
-        })
-        .id();
-      background_storage.set(&position, tile_entity);
-    }
-  }
-
-  commands
-    .entity(background_tilemap)
-    .insert(TilemapBundle {
-      grid_size,
-      map_type,
-      size: background_map_size,
-      storage: background_storage,
-      texture: TilemapTexture::Single(background_texture_handle),
-      tile_size,
-      transform: get_tilemap_center_transform(&background_map_size, &grid_size, &map_type, 0.0),
-      ..default()
-    })
-    .insert(BackgroundTileLayer);
-
-  let playfield_tilemap = commands.spawn_empty().id();
-  let playfield_texture_handle: Handle<Image> = asset_server.load("conveyor.png");
-  let playfield_map_size = TilemapSize {
-    x: playfield_size.0.x,
-    y: playfield_size.0.y,
-  };
-  let playfield_storage = TileStorage::empty(background_map_size);
-
-  commands
-    .entity(playfield_tilemap)
-    .insert(TilemapBundle {
-      grid_size,
-      map_type,
-      size: playfield_map_size,
-      storage: playfield_storage,
-      texture: TilemapTexture::Single(playfield_texture_handle),
-      tile_size,
-      transform: get_tilemap_center_transform(&playfield_map_size, &grid_size, &map_type, 10.0),
-      ..default()
-    })
-    .insert(ConveyorTileLayer);
-}
 
 pub struct ConveyorBuildPlugin {
-  pub playfield_size: PlayfieldSize,
+  pub playfield_size: PlayfieldSize, include_background: bool, include_textures: bool,
 }
 
 impl ConveyorBuildPlugin {
   pub fn new(playfield_size: PlayfieldSize) -> ConveyorBuildPlugin {
-    ConveyorBuildPlugin { playfield_size }
+    ConveyorBuildPlugin { playfield_size, include_background: true, include_textures: true, }
+  }
+
+  pub fn new_no_background(playfield_size: PlayfieldSize) -> ConveyorBuildPlugin {
+    ConveyorBuildPlugin { playfield_size, include_background: false, include_textures: true, }
   }
 }
 
@@ -288,28 +201,10 @@ fn setup_conveyor_ui(
   ui_state.conveyor_atlas = Some(texture_atlas_handle);
 }
 
-fn conveyor_window(
-  tile_rotation: Res<SelectedTileDirection>,
-  mut contexts: EguiContexts,
-  asset_server: Res<AssetServer>,
-) {
-  let image = contexts.add_image(asset_server.load("conveyor.png"));
-
-  let ctx = contexts.ctx_mut();
-
-  let offset = 16.0 * tile_rotation.direction.texture_index() as f32;
-  let uv = egui::Rect::from_two_pos(
-    Pos2::new(offset / 464.0, 0.0),
-    Pos2::new((16.0 + offset) / 464.0, 1.0),
-  );
-
-  egui::Area::new(Id::null())
-    .anchor(Align2::RIGHT_BOTTOM, egui::Vec2::ZERO)
-    .show(ctx, |ui| {
-      egui::Frame::side_top_panel(&Style::default()).show(ui, |ui| {
-        ui.add(egui::widgets::Image::new(image, [64.0, 64.0]).uv(uv));
-      })
-    });
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+pub enum TileSetupSystemSet {
+  SpawnTilemaps,
+  InsertTileData,
 }
 
 impl Plugin for ConveyorBuildPlugin {
@@ -319,19 +214,32 @@ impl Plugin for ConveyorBuildPlugin {
       .insert_resource(self.playfield_size.clone())
       .add_event::<UpdatedTile>()
       .add_event::<ChainedTileChangeEvent>()
-      .add_startup_system(setup_conveyor)
+      .add_startup_system(setup_playfield.in_set(TileSetupSystemSet::SpawnTilemaps))
+      .add_startup_system(apply_system_buffers.after(TileSetupSystemSet::SpawnTilemaps).before(TileSetupSystemSet::InsertTileData))
       .add_systems(
         (
           catch_chained_tile_change_events,
           apply_system_buffers,
-          // update_conveyor_direction,
           conveyor_tile_update_graphics,
         )
-          .after(update_cursor_pos)
-          .in_set(GameSystemSet::Conveyor)
-          .chain(),
-      )
-      .add_system(conveyor_window.after(catch_chained_tile_change_events));
+          .in_set(GameSystemSet::TilePlacing)
+          .chain()
+      );
+
+    if self.include_background {
+      app.add_startup_system(setup_background_tilemap.in_set(TileSetupSystemSet::SpawnTilemaps));
+      if self.include_textures {
+        app.add_startup_systems((insert_background_texture, place_background_tiles).in_set(TileSetupSystemSet::InsertTileData));
+      }
+    }
+
+    if self.include_textures {
+      app.add_startup_system(insert_playfield_texture.in_set(TileSetupSystemSet::InsertTileData));
+    }
+
+    if !app.world.is_resource_added::<SelectedTileDirection>() {
+      app.init_resource::<SelectedTileDirection>();
+    }
   }
 }
 

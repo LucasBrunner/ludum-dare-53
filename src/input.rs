@@ -13,7 +13,7 @@ use self::{
 pub mod prelude {
   pub use super::egui_check::prelude::*;
   pub use super::InputPlugin;
-  pub use super::tile_rotation;
+  pub use super::tile_rotation::prelude::*;
 }
 
 #[derive(Debug, Default)]

@@ -1,19 +1,21 @@
 #![allow(dead_code)]
 
 mod camera;
-mod tile;
 mod helpers;
 mod input;
+mod tile;
+mod ui;
 mod vec2_traits;
 
 use bevy_egui::EguiPlugin;
 use tile::prelude::*;
 
-use bevy::{prelude::*, ecs::schedule::SystemSetConfig};
+use bevy::{ecs::schedule::SystemSetConfig, prelude::*};
 use bevy_ecs_tilemap::prelude::*;
 use bevy_pixel_camera::{PixelCameraBundle, PixelCameraPlugin};
 use camera::prelude::*;
 use input::prelude::*;
+use ui::prelude::*;
 
 fn startup(mut commands: Commands) {
   commands.spawn(PixelCameraBundle::from_zoom(4));
@@ -25,17 +27,18 @@ pub trait OptionalResource<T> {
 
 #[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum GameSystemSet {
-  Egui,
   PreInputCollection,
   InputCollection,
-  Conveyor,
+  TilePlacing,
+  PostTilePlacing,
 }
 
 impl GameSystemSet {
-  fn configure_sets() -> (SystemSetConfig, SystemSetConfig) {
+  fn configure_sets() -> (SystemSetConfig, SystemSetConfig, SystemSetConfig) {
     (
       GameSystemSet::PreInputCollection.before(GameSystemSet::InputCollection),
-      GameSystemSet::InputCollection.before(GameSystemSet::Conveyor),
+      GameSystemSet::InputCollection.before(GameSystemSet::TilePlacing),
+      GameSystemSet::TilePlacing.before(GameSystemSet::PostTilePlacing),
     )
   }
 }
@@ -48,6 +51,7 @@ fn main() {
     .add_plugin(EguiPlugin)
     .add_plugin(InputPlugin)
     .add_plugin(ConveyorBuildPlugin::new(PlayfieldSize(UVec2::new(32, 32))))
+    .add_plugin(UiPlugin)
     .insert_resource(ClearColor(Color::hex("151D28").unwrap()))
     .init_resource::<CursorPos>()
     .add_event::<CameraMoved>()
